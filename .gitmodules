@@ -1,0 +1,4 @@
+[submodule "poison"]
+	path = poison
+	url = git@github.com:lukeorth/poison.git
+	branch = master
