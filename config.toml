@@ -1,4 +1,4 @@
-baseURL = "https://thomaskioko.me/"
+baseURL = "https://thomaskioko.me"
 languageCode = "en-us"
 theme = "poison"
 paginate = 10
