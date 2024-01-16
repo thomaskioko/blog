@@ -7,7 +7,9 @@ tags: ["KMP", "ktor"]
 series: ["Tv Maniac Journey"]
 ---
 
-#### **Introduction:**
+![Photo by Omar Flores on Unsplash](https://miro.medium.com/v2/resize:fit:1100/format:webp/1*2d0w3iXK1ATLsCtQXFSOOQ.jpeg)
+
+### **Introduction:**
 
 Handling various HTTP response codes is crucial when building mobile applications that communicate with APIs. This article will explore how to use [Ktor’s `HttpResponseValidator`](https://ktor.io/docs/response-validation.html) to intercept and handle responses in mobile applications.
 
@@ -17,14 +19,14 @@ Below is what we’ll be able to achieve at the end of this. 😎
 
 ![](https://cdn-images-1.medium.com/max/1600/1*kuq97P-RTzBUJS17yrRuXQ.png)
 
-#### TL;DR 
+### TL;DR 
 
 _If you just want to look at the code, click the link below._
 
 [**Ktor Error Handling by c0de-wizard · Pull Request #95 · c0de-wizard/tv-maniac**  
 _Description Implement HttpResponseValidator and intercept network responses. Previously we just showed an empty screen…_github.com](https://github.com/c0de-wizard/tv-maniac/pull/95 "https://github.com/c0de-wizard/tv-maniac/pull/95")[](https://github.com/c0de-wizard/tv-maniac/pull/95)
 
-#### Understanding HttpResponseValidator
+### Understanding HttpResponseValidator
 
 [Ktor](https://ktor.io/) is a robust Kotlin-based framework for building server-side and client-side applications. It provides a flexible and extensible architecture to efficiently handle HTTP requests and responses. One of the key components in Ktor is the `HttpResponseValidator,` which allows developers to define a custom response.
 
@@ -37,7 +39,7 @@ when (statusCode) {
  }
  ```
 
-#### Intercepting Responses
+### Intercepting Responses
 
 To intercept responses, we need to add `HttpResponseValidator` inside the HttpClient’s body Ktor’s to check the response’s status code and take appropriate action. Before doing that, we need to enable default validation by setting the `expectSuccess` property to `true.` This terminates `HttpClient.receivePipeline` if the status code is unsuccessful.
 
@@ -83,7 +85,7 @@ class HttpExceptions(
 }
 ```
 
-#### API Response Wrapper
+### API Response Wrapper
 
 With the HttpResponseValidator in place, we can create an extension function to wrap API responses.
 
@@ -159,7 +161,7 @@ sealed class ApiResponse<out T, out E> {
 }
 ```
 
-#### API Requests
+### API Requests
 
 We can now create a function with a return type `ApiResonse<T>` and use the extension function we created to make the API call.
 
@@ -200,7 +202,7 @@ And that’s it! 🎊
 I hope this post helped. If you liked it, give it some claps! 👏
 
 
-#### Reference material
+### Reference material
 
 - [Create a Fancy Toast Component Using SwiftUI](https://betterprogramming.pub/swiftui-create-a-fancy-toast-component-in-10-minutes-e6bae6021984)
 - [Response validation](https://ktor.io/docs/response-validation.html)
