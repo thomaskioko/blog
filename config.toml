@@ -8,7 +8,7 @@ pluralizelisttitles = false
     brand = "Thomas Kioko"
     brand_image = "https://pbs.twimg.com/profile_images/1673068659218972672/b5qxoiUB_400x400.jpg"    # path to the image shown in the sidebar
     description = "Just a mobile developer. When I’m not writing code, I am chasing trails on my mountain bike"
-    dark_mode = true
+    dark_mode = false
     # favicon = "favicon.png"             # path to favicon (defaults to favicon.png)
 
     menu = [
@@ -23,7 +23,7 @@ pluralizelisttitles = false
 
     # Links to your socials.
     email_url = "mailto://info@thomaskioko.me"
-    github_url = "https://github.com/c0de-wizard"
+    github_url = "https://github.com/thomaskioko"
     medium_url = "https://medium.com/@_thomaskioko"
     twitter_url = "https://twitter.com/_thomaskioko"
 
@@ -57,7 +57,7 @@ pluralizelisttitles = false
     code_background_color_dark = "#515151"          # default is #515151
     code_block_color_dark = "#FFF"                  # default is #FFF
     code_block_background_color_dark = "#272822"    # default is #272822
-    content_bg_color_dark = "#121212"               # default is #121212
+    content_bg_color_dark = "#282c34"               # default is #121212
     date_color_dark = "#9A9A9A"                     # default is #9A9A9A
     link_color_dark = "#268BD2"                     # default is #268BD2
     list_color_dark = "#9D9D9D"                     # default is #9D9D9D

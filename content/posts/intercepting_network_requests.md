@@ -2,7 +2,7 @@
 title: "Intercepting Ktor Network Responses in Kotlin Multiplatform"
 date: "2023-07-25"
 draft: false
-hideToc: false
+hideToc: true
 tags: ["KMP", "ktor"]
 series: ["Tv Maniac Journey"]
 ---
@@ -198,8 +198,6 @@ fetcher = Fetcher.of {
 By doing this, Store will wrap the exception in the `StoreReadResponse.Error` type, ensuring the flow does not break the stream and will still receive updates when data changes. We can now propagate the result and handle it in the presentation layer. In this case, when we get an exception, we show a SnackBar.
 
 And that’s it! 🎊
-
-I hope this post helped. If you liked it, give it some claps! 👏
 
 
 ### Reference material
