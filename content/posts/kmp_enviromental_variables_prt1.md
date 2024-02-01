@@ -2,7 +2,7 @@
 title: "KMP Environment Variables: Part 1"
 date: 2023-07-10
 draft: false
-hideToc: false
+hideToc: true
 tags: ["KMP"]
 series: ["Tv Maniac Journey"]
 ---

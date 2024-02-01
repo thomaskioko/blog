@@ -2,7 +2,7 @@
 title: "Setting up DataStore on KMP"
 date: "2022-12-15"
 draft: false
-hideToc: false
+hideToc: true
 tags: ["KMP", "datastore"]
 series: ["Tv Maniac Journey"]
 ---
@@ -29,7 +29,7 @@ The changes to this are included in a PR I’m working on. If you are curious, y
 
 For our project, we need to add the preference core dependency.
 
-```
+``` gradle
 dependencies {
     implementation("androidx.datastore:datastore-preferences-core:#dataStoreVersion")
 }
@@ -38,7 +38,7 @@ dependencies {
 
 Now we need to create a function in `commonMain`to help us create an instance of our DataStore object. We can use `expect/actual` pattern and have each platform have its own implementation, but I will create a function and set it up when setting up injection. It's a very simple function that takes in two parameters: Coroutine scope and the filePath.
 
-```
+``` kotlin
 fun createDataStore(
     coroutineScope: CoroutineScope,
     producePath: () -> String
@@ -61,7 +61,7 @@ And that’s it. 🙂 We can now move over to the injection of the DataStore. As
 
 This should be self-explanatory:
 
-```
+``` kotlin
 @Provides
 @Singleton
 fun provideDataStore(
@@ -77,7 +77,7 @@ fun provideDataStore(
 
 For iOS, it’s almost similar. We need to create a function that creates the dataStoretore object and then add that to koin module
 
-```
+``` kotlin
 fun dataStore(scope: CoroutineScope): DataStore<Preferences> = createDataStore(
     coroutineScope = scope,
 producePath = {
@@ -98,7 +98,7 @@ actual fun settingsModule(): Module = module {
 
 Boom. We can now create a repository and use it to get the theme and set the theme. The implementation looks like so.
 
-```
+``` kotlin
 class SettingsRepositoryImpl(
     private val dataStore: DataStore<Preferences>,
     private val coroutineScope: CoroutineScope
@@ -134,7 +134,7 @@ The test is fairly simple. but I had a few gotcha moments.
 
 #### Creating the DataStore & repository objects.
 
-```
+``` kotlin
 private var preferencesScope: CoroutineScope = CoroutineScope(testCoroutineDispatcher + Job())   
 private val dataStore: DataStore<Preferences> = PreferenceDataStoreFactory.createWithPath(
         corruptionHandler = null,
@@ -153,7 +153,7 @@ Something to note: We are using different scopes for the DataStore and the repos
 
 The other thing we need to do is clear the saved item after running a test, or it will read the saved value causing the test to fail. We do that by using `@AfterTest` annotation. We also need to cancel the context associated with the data store.
 
-```
+``` kotlin
 @AfterTest
 fun clearDataStore() = runBlockingTest {
         dataStore.edit {

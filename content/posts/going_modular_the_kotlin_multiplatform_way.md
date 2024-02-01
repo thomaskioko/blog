@@ -2,7 +2,7 @@
 title: "Going Modular — The Kotlin Multiplatform Way"
 date: "2022-01-19"
 draft: false
-hideToc: false
+hideToc: true
 tags: ["KMP", "modularization", "architecture"]
 series: ["Tv Maniac Journey"]
 ---
