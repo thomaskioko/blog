@@ -3,12 +3,8 @@ title: "Navigating the Waters of Kotlin Multiplatform: Exploring Navigation Solu
 date: 2024-04-05
 draft: false
 hideToc: true
-tags:
-  - KMP
-  - decompose
-  - navigation
-series:
-  - Tv Maniac Journey
+tags: ["KMP", "decompose",  "navigation"]
+series: "Tv Maniac Journey"
 ---
 
 

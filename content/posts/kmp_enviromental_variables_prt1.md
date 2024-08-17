@@ -1,10 +1,10 @@
 ---
 title: "KMP Environment Variables: Part 1"
-date: 2023-07-10
+date: "2023-07-10"
 draft: false
 hideToc: true
 tags: ["KMP"]
-series: ["Tv Maniac Journey"]
+series: "Tv Maniac Journey"
 ---
 
 ![Photo by Scott Webb](https://www.thomaskioko.com/wp-content/uploads/2023/05/Environment-Variables-1000x564.jpeg)
