@@ -4,7 +4,7 @@ date: "2022-12-15"
 draft: false
 hideToc: true
 tags: ["KMP", "datastore"]
-series: ["Tv Maniac Journey"]
+series: "Tv Maniac Journey"
 ---
 
 In this article, well, take a look at how to DataStore and how to use it in a Kotlin Multiplatform project.

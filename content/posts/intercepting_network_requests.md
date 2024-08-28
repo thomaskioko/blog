@@ -4,7 +4,7 @@ date: "2023-07-25"
 draft: false
 hideToc: true
 tags: ["KMP", "ktor"]
-series: ["Tv Maniac Journey"]
+series: "Tv Maniac Journey"
 ---
 
 ![Photo by Omar Flores on Unsplash](https://miro.medium.com/v2/resize:fit:1100/format:webp/1*2d0w3iXK1ATLsCtQXFSOOQ.jpeg)
