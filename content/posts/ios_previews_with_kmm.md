@@ -76,10 +76,12 @@ TvManiac/
 │           ├── Package.swift
 │           └── Sources/
 │               └── TVManiacUI/
-│                   └──Cast/
-│                       └── CastListView.swift
-│                   └──Trailers/
-│                       └── TrailersList.swift
+│                   └──Models/
+│                       └── SwiftCast.swift
+│                       └── SwiftTrailer.swift
+│                   ├── CastListView.swift
+│                   ├── ShowInfoView.swift
+│                   ├── ProviderListView.swift
 │                   └── ...
 ```
 
