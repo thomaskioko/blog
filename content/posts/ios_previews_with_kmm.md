@@ -43,7 +43,12 @@ By relocating our UI components into a separate Swift package, we're not just or
 
 ### App structure:
 
-This is how the app looks like with the updated structure.
+I created two packages:
+
+- **SwiftUIComponents:** This package contains common views used in various screens. Colors, Buttons, CardView, PosterImage etc
+- **TVManiacUI:** This Package contains Screen UI Views. eg. CastList, TrailerList, ShowInfoView. etc
+
+Below is how the structure of the App looks like.
 
 ```
 TvManiac/
@@ -57,15 +62,24 @@ TvManiac/
 │   │   └── ... (iOS app-specific code)
 │   └── Modules/
 │       └── SwiftUIComponents/
+│       │   ├── Package.swift
+│       │   └── Sources/
+│       │       └── SwiftUIComponents/
+│       │           └──Components/
+│       │                 ├── BottomNavigation.swift
+│       │                 ├── HeaderContentView.swift
+│       │                 └── ...
+│       │           ├── CollapsibleView.swift
+│       │           ├── TrailerItemView.swift
+│       │           └── ...
+│       └── TVManiacUI/
 │           ├── Package.swift
 │           └── Sources/
-│               └── SwiftUIComponents/
-│                   └──Components/
-│                         ├── BottomNavigation.swift
-│                         ├── HeaderContentView.swift
-│                         └── ...
-│                   ├── CollapsibleView.swift
-│                   ├── TrailerItemView.swift
+│               └── TVManiacUI/
+│                   └──Cast/
+│                       └── CastListView.swift
+│                   └──Trailers/
+│                       └── TrailersList.swift
 │                   └── ...
 ```
 
@@ -94,12 +108,19 @@ Integrating a package in XCode is a straightforward process. These are the steps
 
 - In your main iOS project, go to File > Add Packages.
 - Select `SwiftUIComponents` package.
-- (Optional) Create a new scheme and select the framework. In this case, `SwiftUIComponents`. This allows us to switch between the Main app and the UI package.
+- (Optional)** Create a new scheme and select the framework. In this case, `SwiftUIComponents`. This allows us to switch between the Main app and the UI package.
 
-With that in place, here's an example of how our project structure looks after implementing this approach. 🥳
+With that in place, here's an example of how the project structure looks after implementing this approach. 🥳
 
+##### UI Components Preview
 ![XcodePreview](https://github.com/user-attachments/assets/ddd1e486-40da-4bb0-b5e3-14cc7061b916)
 
+##### Screen Components Preview
+![ScreenComponentsPreview](https://github.com/user-attachments/assets/fa546cc4-e563-4a7b-b734-af1a39d6cc1d)
+
 # Conclusion
-I highly recommend trying this approach. It's made my life easier, my code cleaner, and the general structure better. Next, we might look at adding snapshot tests and setting them up on CI/CD. 
-Happy coding!
+I highly recommend trying this approach. It's made my life easier, my code cleaner, and the general structure better. Next, we might look at adding snapshot tests, adding a CI/CD job and some more cleanup. 
+
+Big shoutout to my colleague Daniel. If you ever read this, thanks for being the best Second class mobile citizen. Until we meet again folks.
+
+Happy coding! ✌️
