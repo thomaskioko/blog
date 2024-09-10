@@ -1,5 +1,5 @@
 ---
-title: "Enhancing iOS UI Development With Swift UI Packages & KMM"
+title: "Enhancing iOS UI Previews: Swift UI Packages & Kotlin Multiplatform Mobile"
 date: "2024-09-07"
 draft: false
 hideToc: true
