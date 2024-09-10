@@ -11,13 +11,11 @@ series: "Tv Maniac Journey"
 
 Remember our adventure in [Going Modular — The Kotlin Multiplatform Way?](https://thomaskioko.me/posts/going_modular_the_kotlin_multiplatform_way/) Well, this is a continuation of that. (Sort of 😁). I say sort of because this article focuses on the Swift side of things. We will explores how creating UI components in a separate Swift package can significantly improve the development experience when working on the iOS App.
 
+If you are interested in the code, [here is the Pull Request](https://github.com/thomaskioko/tv-maniac/pull/286). Let's get this party started.
+
 ## The KMM Preview Headache 🤕
 
-One of the biggest headaches while working with KMM on iOS is that Previews don't load in XCode. I don't know why XCode does not play nice with KMM. It either takes too long to load or fails. The only way to see what I am creating is by running the application. This is frustrating as it slows development time.
-
-### Code
-
-[Here is the PullRequest](https://github.com/thomaskioko/tv-maniac/pull/286) with the changes if you are interested.
+One of the biggest headaches I have had while working with KMM on iOS is that Previews don't load in XCode. I don't know why XCode does not play nice with KMM. It either takes too long to load or fails. The only way to see what I am creating is by running the application. This is frustrating as it slows development time.
 
 
 ## Enter Separate Swift Packages 📦
@@ -43,7 +41,7 @@ By relocating our UI components into a separate Swift package, we're not just or
 
 ### App structure:
 
-I created two packages:
+I ended up creating two packages:
 
 - **SwiftUIComponents:** This package contains common views used in various screens. Colors, Buttons, CardView, PosterImage etc
 - **TVManiacUI:** This Package contains Screen UI Views. eg. CastList, TrailerList, ShowInfoView. etc
