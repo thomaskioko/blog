@@ -1,5 +1,5 @@
 ---
-title: "Streamlining iOS Development with Custom XCFramework Gradle Plugin in KMM"
+title: "XCFramework Generation Using A Custom Gradle Plugin"
 date: "2024-11-17"
 draft: false
 hideToc: true
@@ -9,24 +9,21 @@ series: "Tv Maniac Journey"
 
 # Intro
 
-Howdy folks! The journey continues. In my [previous article](https://thomaskioko.me/posts/ios_previews_with_kmm/), I discussed how modularizing the iOS codebase using Swift packages improved development efficiency and code organization. In this article, we'll explore how we can create an new package for the shared code and automate XCFramework generation using a custom Gradle plugin.
+Howdy folks! In my [previous article](https://thomaskioko.me/posts/ios_previews_with_kmm/), I discussed how modularizing the iOS codebase using Swift packages improved development efficiency and code organization. In this article, we'll explore how to create a new package for the shared code and automate XCFramework generation using a custom Gradle plugin.
 
 ## Background
 
-After I was done moving UI related code to Swift packages, I realized I could create a specific package for the shared code that would be used in the iOS app. This package would contain utilities that are shared between the app and the shared code. e.g 
+After moving most of the reused UI-related code to Swift packages, I realized I could create a specific package for the shared code that can be used in the iOS app. This package would contain utilities that are used across the app. e.g 
+
 1. **StateFlow**: A property wrapper in Swift that bridges Kotlin's StateFlow to SwiftUI's state management system.
 2. **NavigationStack**: A custom SwiftUI navigation implementation that bridges Decompose's (Kotlin Multiplatform navigation library) ChildStack to SwiftUI's navigation system.
 
-Let's look at how we can streamline the distribution of these utilities by creating a new package, moving the classes to the package and creating a custom Gradle plugin to handle the XCFramework generation.
+With that said, let's strap in and get this journey on the road.
 
 
-## The XCFramework Plugin
+## Creating a Custom XCFramework Gradle Plugin
 
-Let's look at our custom Gradle plugin that handles XCFramework generation and distribution. The plugin consists of two main components:
-
-### 1. The Plugin 
-
-The main plugin class handles the framework generation and distribution logic:
+Some of the classes we want to move depend on the shared code. We need to generate the XCFramework and copy that to our new package, TvManiacKit. We can then use this package in our app. Let's look at our custom Gradle plugin.
 
 ```kotlin
 abstract class XCFrameworkPlugin : Plugin<Project> {
@@ -58,22 +55,65 @@ abstract class XCFrameworkPlugin : Plugin<Project> {
             )
         }
     }
+
+  private fun Project.registerCopyXCFrameworkTask(
+    nativeBuildType: NativeBuildType,
+    targetType: NativeTargetType,
+    buildInfix: String = "",
+    extension: XCFrameworkExtension,
+    ): TaskProvider<Copy> {
+
+    // 1.
+    val assembleXCFrameworkTask = tasks.register<XCFrameworkTask>("assemble${buildInfix}XCFramework") {
+      group = GROUP_NAME
+      buildType = nativeBuildType
+
+      val frameworks = multiplatformExtension.nativeFrameworks(nativeBuildType, targetType.targets)
+      from(*frameworks.toTypedArray())
+    }
+
+    // 2.
+    return tasks.register<Copy>("copy${buildInfix}XCFramework") {
+      group = GROUP_NAME
+      description = "Copies the $buildInfix XCFramework to ${extension.outputPath.get()}"
+
+      val outputDir = project.rootProject.projectDir.resolve(
+        "${extension.outputPath.get()}/${extension.frameworkName.get()}",
+      )
+
+      // 3.
+      dependsOn(assembleXCFrameworkTask)
+
+      // 4.
+      from(
+        assembleXCFrameworkTask.map {
+          it.outputDir.resolve(nativeBuildType.getName())
+            .resolve("${project.name}.xcframework")
+        },
+      )
+
+      // 5.
+      into(outputDir)
+
+      // 6.
+      doFirst {
+        outputDir.deleteRecursively()
+      }
+    }
+  }
 }
 ```
 
-### 2. The XCFramework Interface
+Let's break down the plugin.
 
-The Interface defines the configuration options for the plugin:
+1. **Register the assemble task**: This task is responsible for assembling the XCFramework. The buildInfix param allow us to create different build for different configurations. We will have `assembleDebugDeviceXCFramework` and `assembleReleaseXCFramework`.
+2. **Register the copy task**: This task is responsible for copying the assembled XCFramework to the output directory. 
+3. **Require the aassemble task**: This ensures that the XCFramework is assembled before it is copied.
+4. **Copy the assembled XCFramework to the output directory**: This copies the XCFramework to the output directory.
+5. **Clean the DerivedData directory**: We need to clean this up to ensure we have no conflicts or corrupt data from the previous builds. 
 
-```kotlin
-interface XCFrameworkExtension {
-    val frameworkName: Property<String>
-    val outputPath: Property<String>
-    val cleanIntermediate: Property<Boolean>
-}
-```
+`XCFrameworkExtension` interface defines the configuration options for the plugin. This is completely optional, but it allows us to configure the plugin with custom values if we need to use the pluginin another module. We simply need to add this in our `build.gradle.kts` file:
 
-This is completely optional, but it allows us to configure the plugin with custom values if we need to like. We can do this in our `build.gradle.kts` file:
 
 ```kotlin
 xcframework {
@@ -83,34 +123,11 @@ xcframework {
 }
 ```
 
+### Adding The Plugin
 
-### Key Features
+We are almost there. We just nedd to do two things on the Kotlin side of things and we are done. 
 
-The plugin provides several key features:
-
-1. **Automated Task Registration**
-   - Generates tasks for different build configurations (Debug/Release)
-   - Supports multiple target types (Device/Simulator). We can also add support for other targets like WatchOS, etc.
-   - Creates assembly and copy tasks automatically
-
-2. **Framework Management**
-   - Cleans existing frameworks before copying. We do this to ensure we don't have any old frameworks laying around as they could be corrupt or have conflicts.
-   - Handles intermediate file cleanup
-   - Maintains proper framework directory structure
-
-3. **Build Configuration Support**
-   - Validates project setup
-   - Integrates with Kotlin Multiplatform configuration
-   - Supports custom build types and targets
-
-4. **Error Handling**
-   - Validates required plugins and directories
-   - Provides clear error messages for missing configurations
-   - Ensures proper setup before execution
-
-### Usage
-
-We first need to register the XCFramework plugin in our build-plugins `build.gradle.kts` file:
+1. We first need to register the XCFramework plugin in our build-plugins `build.gradle.kts` file:
 
 ```kotlin
 gradlePlugin {
@@ -125,7 +142,7 @@ gradlePlugin {
 }
 ```
 
-With that done, we can apply the plugin in our shared module`build.gradle.kts` file:
+2. With that done, we can apply the plugin in our shared module`build.gradle.kts` file:
 
 ```kotlin
 plugins {
@@ -134,14 +151,9 @@ plugins {
 
 ```
 
-The plugin will create several Gradle tasks:
-- `assembleXCFramework`: Assembles the framework for default configuration
-- `copyXCFramework`: Copies the assembled framework to the specified location
-- Additional tasks for specific build types (e.g., `assembleDebugDeviceXCFramework`)
-
 ## Integration with Xcode
 
-To ensure our XCFramework is always up-to-date, we add it to Xcode's pre-build phase. In your Xcode project:
+Now that our plugin is ready, we need to add it to the Xcode build phase in oder to generated the XCFramework before we build the app. It's pretty straightforward:
 
 1. Select your target and click on "Edit Scheme"
 2. Go to "Build" -> **"Pre-actions"**
@@ -154,11 +166,9 @@ cd "$SRCROOT/.."
 ./gradlew :shared:copyXCFramework
 ```
 
-This automatically rebuilds and copies the framework before each Xcode build.
+## Fastlane Build
 
-## CI Integration with Fastlane
-
-For CI environments, we simply need to add a gradle task to the Fastlane lane job. We need to build the XCFramework before building the app as the XCFramework is used in the app.
+For CI environments, we must add a gradle task to the Fastlane lane job so that the XCFramework is generated before building the app.
 
 ``` ruby
 desc "Build iOS App"
@@ -172,24 +182,8 @@ lane :build_tvmaniac do
 end
 ```
 
-# Alternative Approach: KMMBridge
-
-While we've implemented a custom solution for XCFramework generation, it's worth mentioning [KMMBridge](https://github.com/touchlab/KMMBridge), a powerful tool developed by Touchlab that solves similar problems and more. KMMBridge is designed to streamline the distribution of Kotlin Multiplatform Mobile libraries to iOS developers, offering features like:
-
-- Automated XCFramework generation and publishing
-- SPM (Swift Package Manager) integration
-- CocoaPods support
-- Remote artifact hosting
-- Version management
-- Build configuration management
-
-## Why Not KMMBridge?
-While KMMBridge is an excellent solution, especially for larger projects or teams, I chose to implement a simpler custom plugin for several reasons:
-
-1. **Project Scale**: My project is relatively small, with a manageable number of modules. KMMBridge's comprehensive feature set would be overkill for my needs.
-2. **No Binary Publishing**: I don't need to publish my frameworks to external repositories or share them across multiple projects. Everything stays within the same monorepo.
-3. **Build System Control**: The custom plugin gives me precise control over the build process and integrates seamlessly with my existing gradle tasks.
-4. **Learning Opportunity**: Building a custom solution provided valuable insights into Gradle plugin development and KMM build processes.
+## KMMBridge Shoutout
+I got a lot of inspiration from the [KMMBridge](https://github.com/touchlab/KMMBridge) project. You should check it out! I tried it a while back and it's pretty neat. However, I felt like it was an overkill for my project. I was also looking for an opportunity to do some Gradle scripting.
 
 If your project requires any of the following, consider using KMMBridge instead:
 
@@ -202,9 +196,9 @@ If your project requires any of the following, consider using KMMBridge instead:
 
 ## Conclusion
 
-Creating a custom Gradle plugin for XCFramework generation has significantly improved our development workflow and we can now have a dedicated package for the shared code that is used in the iOS app. This was a great experience getting to dance with Gradle. I got a lot of inspiration from the [KMMBridge](https://github.com/touchlab/KMMBridge) project. You should check it out!
+Creating a custom Gradle plugin for XCFramework generation has significantly improved our development workflow. We can now have a dedicated package for the shared code used in the iOS app. It was a great experience getting to dance with Gradle.
 
-The complete implementation can be found in the [TV Maniac repository](https://github.com/thomaskioko/tv-maniac).
+You can find the complete project here. [TV Maniac repository](https://github.com/thomaskioko/tv-maniac).
 
 Until we meet again, folks. Happy coding! ✌️
 
@@ -212,4 +206,5 @@ Until we meet again, folks. Happy coding! ✌️
 
 ### References
 - [KMMBridge Documentation](https://github.com/touchlab/KMMBridge)
-- [Kotlin Multiplatform Documentation](https://kotlinlang.org/docs/multiplatform.html)
+- [Building an XCFramework on Kotlin Multiplatform from Kotlin 1.5.30](https://www.marcogomiero.com/posts/2021/kmp-xcframework-official-support/)
+- [Build final native binaries](https://kotlinlang.org/docs/multiplatform-build-native-binaries.html)
