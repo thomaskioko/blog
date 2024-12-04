@@ -3,7 +3,7 @@ title: "Integrate Kotlin-Inject-Anvil To Tv Maniac"
 date: "2024-11-30"
 draft: false
 hideToc: true
-tags: ["KMM",  "kotlin-inject", "kotlin-inject-anvil", "anvil", "dependency-injection"]
+tags: ["KMM",  "kotlin-inject", "kotlin-inject-anvil", "anvil",]
 series: "Tv Maniac Journey"
 ---
 
@@ -21,15 +21,17 @@ If you've used Anvil before, you know it takes away alot the boilerplate code an
  Here's a quick overview of how I approached the migration.
 
  - Add dependencies
- - Migrate annotations to kotlin-inject-anvil and add `@ContributesTo`
+ - Apply`@ContributesTo` annotation
  - Apply `@ContributesBinding` annotation
  - Add ksp kotlin-inject-anvil compiler dependencies.
  - Delete component interfaces. 
  - Replace `@Component` with `@MergeComponent` and create subcomponent.
 
+ Let's take a quick look at how each of these steps is implemented. If you'd like to see the code, here's the [pull request](https://github.com/thomaskioko/tv-maniac/pull/363).
+
  
  ### Add kotin-inject-anvil Dependencies.
- This is pretty straight forward. We need to add the dependencies to our project
+ This is pretty straightforward. We need to add the dependencies to our project.
 
  ``` yaml
  kotlinInject-anvil-compiler = { group = "software.amazon.lastmile.kotlin.inject.anvil", name = "compiler", version.ref = "kotlin-inject-anvil" }
@@ -37,9 +39,9 @@ If you've used Anvil before, you know it takes away alot the boilerplate code an
  kotlinInject-anvil-runtime-optional = { group = "software.amazon.lastmile.kotlin.inject.anvil", name = "runtime-optional", version.ref = "kotlin-inject-anvil" }
  ```
  
- `kotlinInject-anvil-runtime-optional` is optional and your project would work without it. I added it so I can get rid of my custom scope and use kotlin-inject-anvil's scopes, keeping everything consistent.
+ `kotlinInject-anvil-runtime-optional` is optional, and your project would work without it. I added it so I can get rid of my custom scope and use kotlin-inject-anvil's scopes to keep everything consistent.
 
- To make things easier, I created a bundle with kotlin-inject dependencies and I use that instead.
+ To make things easier, I created a bundle with kotlin-inject dependencies, and I use that instead.
 
 ``` yaml
  [bundles]
@@ -54,7 +56,7 @@ We can then add it to our module like so. `implementation(libs.bundles.kotlinInj
 
 
 ### Add `@ContributesTo` Annotation
-We can now annotate our interface components with `@ContributesTo`. I also replaced my custom scope with kotlin-inject-anvil scope. `@ApplicationScope` -> `@SingleIn(AppScope::class)`. As I mentioned, this is optional and it will work with your custom scopes. Here's how the compenent looks like.
+We can now annotate our interface components with `@ContributesTo`. I also replaced my custom scope with kotlin-inject-anvil scope: `@ApplicationScope` -> `@SingleIn(AppScope::class)`. As I mentioned, this is optional, and it will work with your custom scopes. Here's how the component looks.
 
 ##### Before
 ``` kotlin
@@ -86,9 +88,11 @@ interface CastComponent {
 }
 ```
 
+One small thing I did later was move the `@SingleIn` annotation to the class instead of having it in the binding functions.
+
 ### Add `@ContributesBinding` Annotation
 
-The next thing we can do is annotate all classes that have interface implemetations with `@ContributesBinding`. Once we've plugged everything, anvil wil provide the bindings for us and we can get rid of the component above with the manual binding.
+The next thing we can do is annotate all classes that have interface implementations with `@ContributesBinding`. Once we've plugged everything in, Anvil will provide the bindings for us, and we can get rid of the component above with the manual binding.
 
 
 ##### Before
@@ -122,7 +126,7 @@ We can buld our app and take a look at the generated code.
 ![Generated Code](https://github.com/user-attachments/assets/e6f836eb-8012-4e1f-9d93-73c2e96cf6bf)
 
 
-Anvil will generate the bindings for us similar to what we had above. This will be generated for all our classes annotated with `@ContributesBinding(AppScope::class)`.
+Anvil will generate the bindings for us similarly to what we had above. This will be generated for all our classes annotated with `@ContributesBinding(AppScope::class)`.
 
 ``` kotlin
 @Origin(value = DefaultCastRepository::class)
@@ -137,9 +141,9 @@ public interface ComThomaskiokoTvmaniacDataCastImplementationDefaultCastReposito
 
 ### Delete Manual Bindings. 
 
-Now that we have our bindings and components being generated for us, we can delete our component interfaces that have provider functions. 
+Now that our bindings and components are being generated for us, we can delete our component interfaces that have provider functions. 
 
-In my previous implementation, each module was responsible fro creating it's own DI compoment. The shared module then adds all these SuperType Components to the parent/final compoment for each platform component. This is a bit painful and can easily get ouf of hand as your project grows. 😮‍💨
+In my previous implementation, each module was responsible for creating its own DI component. The shared module then added all these SuperType Components to the parent/final component for each platform component. This is a bit painful and can easily get out of hand as your project grows. 😮‍💨
 
 ![SharedComponent](https://github.com/user-attachments/assets/1941b434-dd31-49d6-a265-92f893bb2739)
 
@@ -235,15 +239,22 @@ And now, if we look at the generated code, we can see Anvil adds all the generat
 ![Merged Component](https://github.com/user-attachments/assets/79136c55-9bd8-4e7e-aa8e-d6534a3db4c0)
 
 
-If you forget to delete any provide functions, you will get the following error at compile time. This is expected and you can track down the duplicate provide method and delete it.
+If you forget to delete any provide functions, you will get the following error at compile time.
 
 ``` gradle
 e: [ksp] Cannot provide: com.thomaskioko.tvmaniac.data.cast.api.CastDao
 e: [ksp] as it is already provided
 ```
 
+ This is expected and you can track down the duplicate provide method and delete it.
+
+
 ## Conclusion
-With this in place we have now gotten rid of a lot of boilerplate thanks to anvil.
+With this in place we have now gotten rid of manual bindings, replacing that with `@ContributesTo` and `@ContributesBinding`. We also deleted our god component class and in turn getting rid a lot of boilerplate thanks to anvil.
+
+[@Ralf](https://x.com/vRallev) and all the contributors have done an amazing job with this. The integration was really smooth. I'm looking forward to how these libraries evolve.
+
+Until we meet again, folks. Happy coding! ✌️
 
 
 ### References
