@@ -10,7 +10,7 @@ series: "Tv Maniac Journey"
 # Intro
 If you've used Anvil before, you know it takes away alot the boilerplate code and make DI seamless. If Anvil is new to you, it basically allows you to contribute dagger modules and compoment interfaces to your DI graph and merges all the contributions and add them to your component during compilation. Ralf Wonderatschek and Gabriel Peal gave an in-depth talk about this. [Dagger + Anvil: Learning to Love Dependency Injection.](https://www.droidcon.com/2022/06/28/dagger-anvil-learning-to-love-dependency-injection/). You should check it out.
 
- I have been using [kotlin-inject](https://github.com/evant/kotlin-inject) on my pet project for a while now and I have had a good time with it coming from using Dagger in other projects. One thing I missed was using Anvil. This was not availalbe until recently. [kotlin-inject-anvil](https://github.com/amzn/kotlin-inject-anvil?tab=readme-ov-file) joined the chat. 
+ I have been using [kotlin-inject](https://github.com/evant/kotlin-inject) on [my pet project](https://github.com/thomaskioko/tv-maniac) for a while now and I have had a good time with it coming from using Dagger in other projects. One thing I missed was using Anvil. This was not availalbe until recently. [kotlin-inject-anvil](https://github.com/amzn/kotlin-inject-anvil?tab=readme-ov-file) joined the chat. 
  
  This article will focus on my expericence and journey integrating/migrating to kotlin-inject-anvil into the project. 
 
@@ -147,7 +147,7 @@ In my previous implementation, each module was responsible for creating its own 
 
 ![SharedComponent](https://github.com/user-attachments/assets/1941b434-dd31-49d6-a265-92f893bb2739)
 
-Thanks to kotlin-inject-anvil, we can get rid of these as it's now generated for us once we add the merge annotation. 🥳
+Thanks to kotlin-inject-anvil, we can get rid of these as they are now generated for us once we add the merge annotation. 🥳
 
 ## Final Boss: `@MergeComponent` Annotation
 
@@ -252,7 +252,7 @@ e: [ksp] as it is already provided
 ## Conclusion
 With this in place we have now gotten rid of manual bindings, replacing that with `@ContributesTo` and `@ContributesBinding`. We also deleted our god component class and in turn getting rid a lot of boilerplate thanks to anvil.
 
-[@Ralf](https://x.com/vRallev) and all the contributors have done an amazing job with this. The integration was really smooth. I'm looking forward to how these libraries evolve.
+[@Ralf](https://x.com/vRallev) and all the contributors have done a fantastic job with [kotlin-inject-anvil](https://github.com/amzn/kotlin-inject-anvil). The integration was smooth. I'm looking forward to how these libraries evolve.
 
 Until we meet again, folks. Happy coding! ✌️
 
