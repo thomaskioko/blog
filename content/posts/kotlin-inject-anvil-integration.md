@@ -253,6 +253,7 @@ e: [ksp] as it is already provided
 With this in place we have now gotten rid of manual bindings, replacing that with `@ContributesTo` and `@ContributesBinding`. We also deleted our god component class and in turn getting rid a lot of boilerplate thanks to anvil.
 
 [@Ralf](https://x.com/vRallev) and all the contributors have done a fantastic job with [kotlin-inject-anvil](https://github.com/amzn/kotlin-inject-anvil). The integration was smooth. I'm looking forward to how these libraries evolve.
+(Maybe it should be renamed to KiAnvil. Get it? You know, like Keanu, because of how lethal it feels? No? 😂 Don't worry, I will see myself out.)
 
 Until we meet again, folks. Happy coding! ✌️
 
