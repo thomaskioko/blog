@@ -109,6 +109,7 @@ class DefaultCastRepository(
 ##### After
 ```kotlin
 @Inject
+@SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
 class DefaultCastRepository(
   private val dao: CastDao,
@@ -118,7 +119,7 @@ class DefaultCastRepository(
 ```
 
 ### Add KSP Dependencies.
-In order to check if the changes we've made work as intedned, we can add Kotlin inject Anvil compiler dependency which will generate the component classes.
+In order to check if the changes we've made work as intened, we can add Kotlin inject Anvil compiler dependency which will generate the component classes.
 `addKspDependencyForAllTargets(libs.kotlinInject.anvil.compiler)`. `addKspDependencyForAllTargets` is an extension function that created KSP configurations for each target. e.g `kspAndroid` `kspIosArm64`
 
 We can buld our app and take a look at the generated code.
@@ -255,7 +256,7 @@ With this in place we have now gotten rid of manual bindings, replacing that wit
 [@Ralf](https://x.com/vRallev) and all the contributors have done a fantastic job with [kotlin-inject-anvil](https://github.com/amzn/kotlin-inject-anvil). The integration was smooth. I'm looking forward to how these libraries evolve.
 (Maybe it should be renamed to KiAnvil. Get it? You know, like Keanu, because of how lethal it feels? No? 😂 Don't worry, I will see myself out.)
 
-Until we meet again, folks. Happy coding! ✌️
+Thanks [@Ralf](https://x.com/vRallev) for reviewing the article. Until we meet again, folks. Happy coding! ✌️
 
 
 ### References
