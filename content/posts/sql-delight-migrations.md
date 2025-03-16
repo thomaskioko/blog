@@ -3,7 +3,7 @@ title: "SQLDelight Migrations"
 date: "2025-03-16"
 draft: false
 hideToc: true
-tags: ["SQLDelight",  "Performance", "Baseline-Profiles",]
+tags: ["SQLDelight",  "KMM", "Database Migration"]
 series: "Tv Maniac Journey"
 ---
 
