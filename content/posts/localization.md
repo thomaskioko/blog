@@ -221,10 +221,12 @@ With this in place, we can ensure we always get the correct string and is format
 
 # Summary
 
-While this implementation might seem complex at first, it provides a flexible and testable solution for sharing resources across platforms. I've also explored [Lyricist](https://github.com/adrielcafe/lyricist) as a potential alternative, but for now, this solution meets my need. But, time will tell.
+While this implementation might seem complex at first, it provides a flexible and testable solution for sharing resources across platforms. 
+I've also explored [Lyricist](https://github.com/adrielcafe/lyricist) as a potential alternative, but for now, this solution meets my need. But, time will tell.
 
-In the next article, we'll explore how to inject the Locale and implement the localizer in the presenter module.
+If you are interested, you can take a look at the [pull request here](https://github.com/thomaskioko/tv-maniac/pull/511).
+
+In the next article, we'll explore how to inject the Locale and implement the localizer in the presenter module. Happy coding folks ✌️
 
 ### References
 - [Moko Resources GitHub Repository](https://github.com/icerockdev/moko-resources)
-- [Kotlin Multiplatform Documentation](https://kotlinlang.org/docs/multiplatform.html)
