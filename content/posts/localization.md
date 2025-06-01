@@ -219,6 +219,29 @@ internal class MokoLocalizerJvmTest : MokoLocalizerTest() {
 
 With this in place, we can ensure we always get the correct string and is formatted as expected.
 
+### Localizer Usage Snippet
+
+An example of how we can now use this is the presentation layer
+
+```kotlin
+@Inject
+class AppPresenter(
+    private val respository: CoolRepository,
+    private val localizer: Localizer,
+) {
+    ...
+    
+    fun updateErrorState() {
+        UiState(
+            title = localizer.getString(StringResourceKey.TraktDialogLoginTitle),
+            dialogTitle = localizer.getString(StringResourceKey.TraktDialogLoginTitle),
+            dialogMessage = localizer.getString(StringResourceKey.TraktDialogLoginMessage),
+            retryButton = localizer.getString(StringResourceKey.ButtonErrorRetry)
+        )
+    }
+}
+```
+
 # Summary
 
 While this implementation might seem complex at first, it provides a flexible and testable solution for sharing resources across platforms. 
