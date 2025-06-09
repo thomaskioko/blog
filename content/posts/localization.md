@@ -9,7 +9,7 @@ series: "Tv Maniac Journey"
 
 Welcome back! In this article, we'll explore my approach to implementing Internationalization (I18n) in a Kotlin Multiplatform project. I'll share how I've structured the solution to enable resource sharing between Android and iOS platforms. While this implementation might be more complex than necessary for some use cases, it demonstrates a modular approach to handling internationalization. Let's dive in and see how it works.
 
-# Internationalization (I18n) in Kotlin Multiplatform
+# Internationalization (I18n)
 
 Internationalization (I18n) is the process of designing and developing applications that can be adapted to different languages and regions. This allows your app to "customize" the content based on the user's region. 
 
