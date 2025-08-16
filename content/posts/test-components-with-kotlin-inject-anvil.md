@@ -10,6 +10,10 @@ series: "Tv Maniac Journey"
 
 Testing in projects can quickly become complex, especially when managing dependencies across different platforms. In this post, I'll share my journey of refactoring TvManiac's test infrastructure from manually creating fake presenter factories to using proper dependency injection with [kotlin-inject-anvil](https://github.com/amzn/kotlin-inject-anvil) to create a test component that wires the fixtures for us.
 
+The complete implementation is available in the [TvManiac](https://github.com/thomaskioko/tv-maniac).
+
+Let's jump right in.
+
 ## The Problem: Manual Test Doubles
 
 Previously, our tests looked like this. This was a big object and I had to change it every time I added a new feature/depednecy to the project.
@@ -43,11 +47,11 @@ class DefaultRootComponentTest {
 
 The goal was simple: leverage kotlin-inject-anvil to create test components that automatically provide all required dependencies, just like our production code.
 
-> Note: This pattern is not used across the entire project. I am using this in the rootComponent as this requires quite some dependencies and the graph is a bit complex. Other unit tests use the fakes directly and there's no need for the test component. This solution is for complex objects. In this case, the App's root component.
+> **Note:** This pattern is not used across the entire project. I am using this in the rootComponent as this requires quite some dependencies and the graph is a bit complex. Other unit tests use the fakes directly and there's no need for the test component. This solution is for complex objects. In this case, the App's root component.
 
 ### Step 1: Creating the Test Scope
 
-First, I defined a dedicated scope for test dependencies:
+First, I defined a dedicated scope for test dependencies. It's a simple interface and acts as a marker for the DI processor and does not affect the prodcution compoments.
 
 ```kotlin
 interface TestScope
@@ -75,11 +79,10 @@ interface TestDataModule {
 
 I then created platform-specific test components instead of trying to share them in `commonMain`. Since we are using DI, anvil will generate the speficif component for each plaform. We need to extend the platform component in our test since this will have all the bindigns with everything stiched together. So we need to do structure our tests to follow this structure.
 
-> Note: That generated type is named after our component with the Merged suffix: `TestJvmComponentMerged`.
+> **Note**: That generated type is named after our component with the Merged suffix: `TestJvmComponentMerged`.
 
 
 ```kotlin
-
 @Component
 @SingleIn(TestScope::class)
 @MergeComponent(TestScope::class)
@@ -94,7 +97,6 @@ abstract class TestJvmComponent : TestJvmComponentMerged {
 The iOS component follows the same pattern:
 
 ```kotlin
-
 @Component
 @SingleIn(TestScope::class)
 @MergeComponent(TestScope::class)
@@ -189,15 +191,11 @@ Initially, I tried placing `TestComponent` in `commonMain`, but this doesn't wor
 As much as this seems like overkill for this project, this demonstrates how this can be done in bigger projects. This also allows us to easily add new dependencies without touching the tests
 
 
-```
-
-
 ## What's Next?
 
 This test infrastructure sets the foundation for more robust testing patterns. Future improvements could include:
 - Adding integration test components with real implementations
-- Exploring shared test components for cross-platform integration tests
+- Exploring shared test components for cross-platform integration tests.
+- Maybe splitting the RootComponent to smaller compoments.
 
-The complete implementation is available in the [TvManiac repository](https://github.com/thomaskioko/tv-maniac).
----
 
