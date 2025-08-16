@@ -1,9 +1,9 @@
 ---
-title: "Simplifying KMP Test Infrastructure with kotlin-inject-anvil"
+title: "Simplifying Test Infrastructure with kotlin-inject-anvil"
 date: "2025-08-02"
 draft: false
 hideToc: true
-tags: ["KMM",  "kotlin-inject", "kotlin-inject-anvil", "dependency injection",]
+tags: ["KMM",  "kotlin-inject", "kotlin-inject-anvil", "dependency inversion", "testing"]
 series: "Tv Maniac Journey"
 ---
 
@@ -16,7 +16,7 @@ Let's jump right in.
 
 ## The Problem: Manual Test Doubles
 
-Previously, our tests looked like this. This was a big object and I had to change it every time I added a new feature/depednecy to the project.
+Previously, our tests looked like this. This was a big object and I had to change it every time I added a new feature/dependencies to the project.
 
 ```kotlin
 class DefaultRootComponentTest {
@@ -41,7 +41,6 @@ class DefaultRootComponentTest {
 `RootComponentTest` required manually creating fake presenter factories, leading to:
 - Boilerplate code duplication across tests
 - Maintenance overhead when adding new dependencies
-- No compile-time verification of dependency completeness
 
 ## The Solution: Test Components with DI
 
@@ -51,7 +50,7 @@ The goal was simple: leverage kotlin-inject-anvil to create test components that
 
 ### Step 1: Creating the Test Scope
 
-First, I defined a dedicated scope for test dependencies. It's a simple interface and acts as a marker for the DI processor and does not affect the prodcution compoments.
+First, I defined a dedicated scope for test dependencies. It's a simple interface and acts as a marker for the DI processor and does not affect the production components.
 
 ```kotlin
 interface TestScope
@@ -59,7 +58,7 @@ interface TestScope
 
 ### Step 2: Test Modules for Dependencies
 
-To provide test implementations, I created `TestDataModule` that adds all the required depednecies. We use fakes in the case and not the actual implementation. With the use of dependency inversion, we can easily create fake implementations.
+To provide test implementations, I created `TestDataModule` that adds all the required dependencies. We use fakes in the case and not the actual implementation. With the use of dependency inversion, we can easily create fake implementations.
 
 ```kotlin
 
@@ -77,7 +76,7 @@ interface TestDataModule {
 
 ### Step 3: Platform-Specific Test Components
 
-I then created platform-specific test components instead of trying to share them in `commonMain`. Since we are using DI, anvil will generate the speficif component for each plaform. We need to extend the platform component in our test since this will have all the bindigns with everything stiched together. So we need to do structure our tests to follow this structure.
+I then created platform-specific test components instead of trying to share them in `commonMain`. Since we are using DI, anvil will generate the specific component for each platform. We need to extend the platform component in our test since this will have all the bindigns with everything stitched together. So we need to do structure our tests to follow this structure.
 
 > **Note**: That generated type is named after our component with the Merged suffix: `TestJvmComponentMerged`.
 
@@ -136,12 +135,11 @@ abstract class DefaultRootComponentTest {
 }
 ```
 
-Platform-specific implementations then provide the dependencies:
+Provide Platform-specific implementations:
 
 #### `jvmTest`
 
 ```kotlin
-
 internal class DefaultRootComponentJvmTest : DefaultRootComponentTest() {
     private val testComponent: TestJvmComponent = TestJvmComponent::class.create()
 
@@ -156,7 +154,6 @@ internal class DefaultRootComponentJvmTest : DefaultRootComponentTest() {
 #### `iOSTest`
 
 ```kotlin
-
 internal class DefaultRootComponentJvmTest : DefaultRootComponentTest() {
     private val testComponent: TestIosComponent = TestIosComponent.create()
 
@@ -172,7 +169,7 @@ This allows us to easily scale our tests. Say we add support for desktop app, we
 
 ## Key Learnings
 
-### 1. Dependnency Inversion & Tests
+### 1. Dependency Inversion & Tests
 
 The project uses Dependency Inversion pattern and this makes testing effective. This allows us to decouple dependencies and test them in isolation. We also use Fakes in the projects and no mocks. With the use of dependency inversion, we can avoid using mocks in the project. Below are some good articles that talk more about this. 
 
@@ -196,6 +193,6 @@ As much as this seems like overkill for this project, this demonstrates how this
 This test infrastructure sets the foundation for more robust testing patterns. Future improvements could include:
 - Adding integration test components with real implementations
 - Exploring shared test components for cross-platform integration tests.
-- Maybe splitting the RootComponent to smaller compoments.
+- Maybe splitting the RootComponent to smaller components.
 
-
+Until we meet again, folks. Happy coding! ✌️
