@@ -1,5 +1,5 @@
 ---
-title: "Publishing Gradle Plugins to Maven Central — The Journey From Local to Global"
+title: "Publishing Gradle Plugins to Maven Central"
 date: "2025-08-30"
 draft: false
 hideToc: true
