@@ -1,7 +1,7 @@
 baseURL = "https://thomaskioko.me"
 languageCode = "en-us"
 theme = "poison"
-paginate = 10
+pagination.pagerSize = 10
 pluralizelisttitles = false
 
 [params]
