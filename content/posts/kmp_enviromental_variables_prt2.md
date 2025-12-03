@@ -265,7 +265,5 @@ Until next time, happy coding! ✌️
 
 ## Resources
 
-- [Tv-Maniac Repository](https://github.com/thomaskioko/tv-maniac)
-- [Publishing Gradle Convention Plugins](https://thomaskioko.me/posts/publishing_gradle_plugins/)
 - [Gradle Plugin Development Guide](https://docs.gradle.org/current/userguide/custom_plugins.html)
 - [KMP Documentation](https://kotlinlang.org/docs/multiplatform.html)
