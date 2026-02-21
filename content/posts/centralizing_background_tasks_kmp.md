@@ -9,11 +9,11 @@ series: "Tv Maniac Journey"
 
 # Intro
 
-In a [previous post](/posts/kmp_background_tasks/), I walked through setting up background tasks in KMP for token refresh. After that post, I added two more background tasks: library sync and episode notifications. Same pattern, same structure. That's when I noticed a gap in my implementation..
+In a [previous post](/posts/kmp_background_tasks/), I walked through setting up background tasks in KMP for token refresh. After that post, I added two more background tasks: library sync and episode notifications. Same pattern, same structure. That's when I noticed a gap in my implementation.
 
 Each new task meant copy pasting the same registration, scheduling, and execution boilerplate with slight variations. Three tasks across two platforms, and I was already seeing inconsistencies that made debugging harder than it needed to be.
 
-This post covers how I centralized all background task logic behind a shared implementation. 
+This post covers how I centralized all background task logic, first by extracting platform boilerplate into shared registries, and then by going a step further and unifying everything into a single common API.
 
 
 ## What Went Wrong
@@ -24,7 +24,7 @@ On **iOS**, each task repeated the same six steps: register with `BGTaskSchedule
 
 On **Android**, each feature required *two* classes: a `*Tasks` class for scheduling and a `*Worker` class for execution. Three features meant six classes, plus a factory that had to manually map every worker class name.
 
-Three tasks, three different approaches to concurrency and error handling. None of them were wrong individually. But, when you're debugging a background task that didn't fire at 2am, the last thing you want is to remember which concurrency pattern *this particular task* uses.
+Three tasks, three different approaches to concurrency and error handling. None of them were wrong individually. But when you're debugging a background task that didn't fire at 2am, the last thing you want is to remember which concurrency pattern *this particular task* uses.
 
 
 ## The Inconsistency
@@ -36,11 +36,11 @@ There's also the onboarding cost. If another engineer decided to contribite to t
 Why I was introducing background tasks, the architecture worked. But as I contunied adding more features, I saw the issue; Inconsistency!
 
 
-## The Centralization
+## The First Approach
 
-The fix was straightforward: extract the platform boilerplate into a shared library in `core/tasks/` and have each task declare only what's unique to it.
+The first fix was straightforward: extract the platform boilerplate into a shared library in `core/tasks/` and have each task declare only what's unique to it.
 
-On **iOS**, each task now implements a `BackgroundTask` interface:
+On **iOS**, each task implemented a `BackgroundTask` interface:
 
 ```kotlin
 interface BackgroundTask {
@@ -50,9 +50,9 @@ interface BackgroundTask {
 }
 ```
 
-A `BGTaskRegistry` handles all the registration, scheduling, execution window management, and rescheduling.
+A `BGTaskRegistry` handled all the registration, scheduling, execution window management, and rescheduling.
 
-On **Android**, each task implements `BackgroundWorker`:
+On **Android**, each task implemented `BackgroundWorker`:
 
 ```kotlin
 interface BackgroundWorker {
@@ -63,11 +63,11 @@ interface BackgroundWorker {
 }
 ```
 
-A single `DispatchingWorker` replaces all three `CoroutineWorker` subclasses. It looks up the registered worker by name and delegates execution. The worker factory went from a manual switch statement to a single line.
+A single `DispatchingWorker` replaced all three `CoroutineWorker` subclasses. It looked up the registered worker by name and delegated execution. The worker factory went from a manual switch statement to a single line.
 
 The before/after on a task implementation tells the story. Here's the iOS token refresh task:
 
-**Before:**
+##### Before
 
 ```kotlin
 class IosTraktAuthTasks(
@@ -100,7 +100,7 @@ class IosTraktAuthTasks(
 
 Registration, scheduling, execution window management, expiration handling, rescheduling are all inlined. Now multiply that by three tasks.
 
-**After:**
+##### After
 
 ```kotlin
 class IosTraktAuthTasks(
@@ -123,7 +123,9 @@ class IosTraktAuthTasks(
 }
 ```
 
-The task only contains the *what*. The implementation lives in one place.
+The task only contains the *what*. The platform machinery lives in one place.
+
+This worked. Debugging got easier, adding new tasks got simpler. But there was still a problem I'd intentionally left on the table.
 
 
 ### Android: Collapsing the Worker/Task Pair
@@ -141,78 +143,7 @@ return when (workerClassName) {
 
 Every new background task meant adding a worker class, a tasks class, and updating this factory in the app module. Three files for one feature.
 
-Here's what the token refresh looked like before two classes for one concern:
-
-```kotlin
-// Class 1: Scheduling
-class AndroidTraktAuthTasks(
-    private val workManager: Lazy<WorkManager>,
-) : TraktAuthTasks {
-
-    override fun scheduleTokenRefresh() {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-        val refreshWork = PeriodicWorkRequestBuilder<TokenRefreshWorker>(120L, TimeUnit.HOURS)
-            .setConstraints(constraints)
-            .build()
-        workManager.value.enqueueUniquePeriodicWork(
-            "token_refresh_work", ExistingPeriodicWorkPolicy.UPDATE, refreshWork,
-        )
-    }
-
-    override fun cancelTokenRefresh() =
-        workManager.value.cancelUniqueWork("token_refresh_work")
-}
-
-// Class 2: Execution
-class TokenRefreshWorker(
-    context: Context,
-    params: WorkerParameters,
-    private val traktAuthRepository: Lazy<TraktAuthRepository>,
-) : CoroutineWorker(context, params) {
-
-    override suspend fun doWork(): Result {
-        val authState = traktAuthRepository.value.getAuthState() ?: return Result.success()
-        if (!authState.isExpiringSoon()) return Result.success()
-        return when (traktAuthRepository.value.refreshTokens()) {
-            is TokenRefreshResult.Success -> Result.success()
-            is TokenRefreshResult.NetworkError -> Result.retry()
-            else -> Result.failure()
-        }
-    }
-}
-```
-
-After centralizing, each feature is a single class:
-
-```kotlin
-class AndroidTraktAuthTasks(
-    private val scheduler: BackgroundWorkerScheduler,
-    private val traktAuthRepository: Lazy<TraktAuthRepository>,
-) : TraktAuthTasks, BackgroundWorker {
-
-    override val workerName = "token_refresh_work"
-    override val interval = 120.hours
-    override val constraints = WorkerConstraints(NetworkRequirement.CONNECTED)
-
-    override fun setup() = scheduler.register(this)
-    override fun scheduleTokenRefresh() = scheduler.schedulePeriodic(workerName)
-    override fun cancelTokenRefresh() = scheduler.cancel(workerName)
-
-    override suspend fun execute(): WorkerResult {
-        val authState = traktAuthRepository.value.getAuthState() ?: return WorkerResult.Success
-        if (!authState.isExpiringSoon()) return WorkerResult.Success
-        return when (traktAuthRepository.value.refreshTokens()) {
-            is TokenRefreshResult.Success -> WorkerResult.Success
-            is TokenRefreshResult.NetworkError -> WorkerResult.Retry
-            else -> WorkerResult.Failure
-        }
-    }
-}
-```
-
-A single `DispatchingWorker` replaced all three `CoroutineWorker` subclasses. It receives the worker name via `inputData`, looks it up in the scheduler's registry, and calls `execute()`. The factory collapsed to one line:
+After centralizing, each feature became a single class, and the factory collapsed to one line:
 
 ```kotlin
 return when (workerClassName) {
@@ -221,67 +152,186 @@ return when (workerClassName) {
 }
 ```
 
-Three worker classes deleted. Factory no longer needs to know about individual features. Adding a new background task is just one class that implements `BackgroundWorker` and calls `scheduler.register(this)` during setup.
+Three worker classes deleted. Factory no longer needs to know about individual features.
 
 
-## Why Not a Common API?
+## The Problem with Two Interfaces
 
-You might have noticed that iOS has `BackgroundTask` and Android has `BackgroundWorker`. Two separate interfaces in platform-specific source sets. It's a fair question: why not define a single `BackgroundTask` interface in `commonMain` and have both platforms implement it?
+At the end of that first centralization, I wrote a section in my notes titled "Why Not a Common API?" and made the case for keeping iOS and Android on separate interfaces. The reasoning was: the task implementations are already platform-specific, the business logic lives in shared repositories, and the small differences between platforms are easier to model when each platform owns its contract.
 
-I considered it. A common interface would look something like:
+That reasoning was valid when the only thing I was centralizing was platform boilerplate. But it missed something that became obvious once I started maintaining the code.
+
+The *workers themselves* were duplicated across platforms.
+
+Token refresh? Same logic in `AndroidTraktAuthTasks.execute()` and `IosTraktAuthTasks.execute()`. Library sync? Same calls to the same shared repositories. Episode notifications? Same three-step pipeline. The business logic was identical. Only the class name and the source set were different.
+
+I had six worker classes doing the same thing. When I fixed a bug in the Android token refresh worker, I had to remember to apply the same fix to the iOS one. That's the exact problem the first centralization was supposed to solve, and it did for platform boilerplate, but not for the workers themselves.
+
+
+## The Unified Approach
+
+Around this time, I came across [Meeseeks](https://docs.meeseeks.mattramotar.dev/introduction), a KMP library for background task scheduling. It takes the exact approach I'd been avoiding: a single common API with platform implementations behind the scenes. Seeing how they modeled the worker interface and scheduler gave me the push to stop maintaining two copies of the same logic. I didn't end up using the library directly since my use case is simple enough and I already had a lot of the infrastructure in place, but it validated the direction and inspired the shape of the API.
+
+The answer was the common API I'd talked myself out of the first time. One `BackgroundWorker` interface in `commonMain`, one `BackgroundTaskScheduler` interface in `commonMain`, and workers that live in shared code.
+
+Here's the shared API:
 
 ```kotlin
-// commonMain
-interface BackgroundTask {
-    val taskId: String
-    val interval: Duration
-    suspend fun execute(): TaskResult
+interface BackgroundWorker {
+    val workerName: String
+    suspend fun doWork(): WorkerResult
+}
+
+interface BackgroundTaskScheduler {
+    fun schedulePeriodic(request: PeriodicTaskRequest)
+    fun scheduleAndExecute(request: PeriodicTaskRequest)
+    fun cancel(id: String)
+    fun cancelAll()
+}
+
+data class PeriodicTaskRequest(
+    val id: String,
+    val intervalMs: Long,
+    val constraints: TaskConstraints = TaskConstraints(),
+)
+```
+
+Workers now live in `commonMain`. Here's what the token refresh worker looks like:
+
+```kotlin
+@Inject
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = BackgroundWorker::class, multibinding = true)
+class TokenRefreshWorker(
+    private val traktAuthRepository: Lazy<TraktAuthRepository>,
+    private val logger: Logger,
+) : BackgroundWorker {
+
+    override val workerName: String = WORKER_NAME
+
+    override suspend fun doWork(): WorkerResult {
+        val authState = traktAuthRepository.value.getAuthState() ?: return WorkerResult.Success
+        if (!authState.isExpiringSoon()) return WorkerResult.Success
+
+        return when (traktAuthRepository.value.refreshTokens()) {
+            is TokenRefreshResult.Success -> WorkerResult.Success
+            is TokenRefreshResult.NetworkError -> WorkerResult.Retry("Network error during token refresh")
+            else -> WorkerResult.Failure("Token refresh failed")
+        }
+    }
+
+    internal companion object {
+        internal const val WORKER_NAME = "com.thomaskioko.tvmaniac.tokenrefresh"
+        private const val FIVE_DAYS_MS = 5L * 24 * 60 * 60 * 1000
+
+        internal val REQUEST = PeriodicTaskRequest(
+            id = WORKER_NAME,
+            intervalMs = FIVE_DAYS_MS,
+            constraints = TaskConstraints(requiresNetwork = true),
+        )
+    }
 }
 ```
 
-It's doable. The interfaces are already similar in shape both have an identifier, an interval, and an `execute()` function. You could absolutely model this in `commonMain` and have each platform's registry accept the common type.
+One class. Shared code. Runs on both platforms. The scheduling request is a companion on the worker itself. No separate `*Tasks` class, no platform-specific wrapper.
 
-I went with separate platform interfaces for simplicity. The task implementations are already platform-specific:`AndroidTraktAuthTasks` lives in `androidMain`, `IosTraktAuthTasks` lives in `iosMain`. The business logic that matters (checking token expiry, calling the refresh API) already lives in shared repositories. A common interface would unify the *declaration*, but there's no shared code that needs to operate on tasks generically across platforms.
+Workers register themselves via kotlin-inject multibinding. A `DefaultWorkerFactory` collects all `BackgroundWorker` implementations and maps them by name:
 
-There are also small differences that are easier to model when each platform owns its contract. Android has typed results (success, retry, failure) where retry hooks into WorkManager's backoff. iOS uses a boolean completion callback. Android declares network constraints upfront. These aren't blockers and we can abstract over them, But doing so adds a layer that isn't needed for the current structure.
+```kotlin
+class DefaultWorkerFactory(
+    workers: Set<BackgroundWorker>,
+) : WorkerFactory {
+    private val registry: Map<String, BackgroundWorker> = workers.associateBy { it.workerName }
 
-The symmetry between the two APIs is intentional. Same shape, same registration pattern, same `setup()`/`schedule()`/`cancel()` flow. It's a convention, not an abstraction. If this evolves to the point where shared code needs to schedule or manage tasks generically, a common interface is the natural next step. For now, keeping it simple means less to maintain and fewer decisions baked into a layer that's hard to change later.
+    override fun createWorker(workerName: String): BackgroundWorker? = registry[workerName]
+}
+```
+
+Adding a new worker means implementing `BackgroundWorker` with the multibinding annotation. No factory updates, no manual registration. The DI framework handles discovery.
+
+The platform-specific code that remains is the scheduler, the thin wrapper that actually talks to WorkManager or `BGTaskScheduler`. These don't know anything about specific tasks. They receive a `PeriodicTaskRequest` and a `workerName`. Workers are completely decoupled from the platform.
+
+
+### Initializers Tie It Together
+
+Each feature has an initializer that reacts to app state and schedules work accordingly:
+
+```kotlin
+class TokenRefreshInitializer(
+    private val scheduler: BackgroundTaskScheduler,
+    private val traktAuthRepository: TraktAuthRepository,
+    dispatchers: AppCoroutineDispatchers,
+) : AppInitializer {
+    private val scope = CoroutineScope(SupervisorJob() + dispatchers.io)
+
+    override fun init() {
+        scope.launch {
+            traktAuthRepository.state.distinctUntilChanged().collectLatest { state ->
+                when (state) {
+                    TraktAuthState.LOGGED_IN -> scheduler.schedulePeriodic(TokenRefreshWorker.REQUEST)
+                    TraktAuthState.LOGGED_OUT -> scheduler.cancel(TokenRefreshWorker.WORKER_NAME)
+                }
+            }
+        }
+    }
+}
+```
+
+The initializer observes auth state and tells the scheduler what to do. The scheduler talks to the OS. The worker does the work. Clean separation.
+
+
+## The Cleanup
+
+Eighteen files deleted across the codebase. Six platform-specific worker classes, three domain-level `*Tasks` interfaces, six platform-specific `*Tasks` implementations, and three old infrastructure classes. Replaced by three shared workers, a shared scheduler interface, a worker factory, and two platform schedulers.
+
+Six worker classes collapsed into three. The domain layer no longer needs to define task interfaces at all. It just implements `BackgroundWorker` and declares a `REQUEST`.
+
 
 
 ## What Changed for Debugging
 
-The centralization paid off in a few concrete ways.
+All task submissions, registrations, and execution results now flow through one scheduler per platform. One place to add logging means consistent, complete logs for every task. Before, I had to check each task's implementation to understand how it handled errors or what it logged. Now the scheduler handles that uniformly.
 
-**Single logging path.** All task submissions, registrations, and execution results now flow through the registry/scheduler. One place to add logging means consistent, complete logs for every task.
+On Android, `SchedulerDispatchWorker` maps `WorkerResult` to WorkManager's `Result` in one place. On iOS, `IosTaskScheduler` handles the expiration window the same way for every task. When something goes wrong, I'm not jumping between three different implementations trying to figure out which concurrency pattern this particular task uses. There's one path, one set of logs, one place to fix things.
 
-**Consistent error handling.** On Android, the `DispatchingWorker` maps `WorkerResult` to WorkManager's `Result` in one place. No more wondering whether a specific worker handles `CancellationException` or not.
+That's the real win of centralizing. It's not just less code, it's fewer places to look when something breaks.
 
-**Predictable execution model.** On iOS, every task gets the same expiration handler behavior. When I was debugging a task that seemed to get killed mid-execution, I didn't have to check which concurrency pattern it was using.
 
-**Easier simulation.** When testing via LLDB on iOS, I'm confident that the execution path through `BGTaskRegistry` is the same one that runs in production. The registry dispatches to `execute()` the same way regardless of which task triggered it.
+## A Lesson in Timing
+
+In the first pass, I argued against a common API because "there's no shared code that needs to operate on tasks generically across platforms." That was true at the time. The registries and schedulers were the pain point, and centralizing those per-platform was the right call.
+
+But the workers were always going to converge. The business logic was shared from day one; it lived in shared repositories. The only reason the workers were platform-specific was because they had to conform to platform-specific interfaces. Once I unified the interface, the workers naturally moved to shared code.
+
+I don't think I should have built the common API from the start. With one task, separate platform interfaces were simpler. With three tasks and identical business logic on both sides, the common API became obvious. The right abstraction reveals itself when the duplication does.
 
 
 ## When to Centralize
 
 Not every case of duplication warrants a library. With one or two background tasks, the original approach was fine. Here's how I'd think about it:
 
-**Centralize when:**
-- You have three or more tasks sharing the same platform boilerplate
-- Inconsistencies are creeping in across implementations
-- Debugging requires understanding task-specific patterns rather than a single common one
-- New tasks require touching multiple files that have nothing to do with the task's business logic
+**Centralize** when you have three or more tasks sharing the same platform boilerplate, when inconsistencies are creeping in across implementations, or when new tasks require touching multiple files that have nothing to do with the task's business logic.
 
-**Don't centralize when:**
-- You have one or two tasks and the duplication is trivial
-- The platform APIs are genuinely different enough between tasks that a common abstraction would leak
-- You'd be building infrastructure for hypothetical future tasks
+**Unify** when the business logic in your workers is identical across platforms and you're fixing the same bug in two places. If adding a new task means creating two classes with the same body in different source sets, you've outgrown separate interfaces.
+
+**Don't centralize** when you have one or two tasks and the duplication is trivial, or when you'd be building infrastructure for hypothetical future tasks.
+
+
+## Pull Requests
+
+If you want to dig into the implementation, here are the pull requests for each iteration:
+
+- [First approach: Centralizing platform boilerplate](https://github.com/thomaskioko/tv-maniac/pull/759)
+- [Unified approach: Shared workers and scheduler]()
 
 
 ## Final Thoughts
 
 The first background task in a codebase is about getting it to work. The second one validates your pattern. The third one tells you whether that pattern scales.
 
-In this case, it didn't because the pattern was wrong, but because the platform boilerplate was too heavy to copy reliably. Centralizing it into a library meant each new task is just a data declaration and an `execute()` function.
+I went through two iterations here. The first centralization extracted platform boilerplate into shared registries and kept workers platform-specific. That was the right call at the time. The second iteration unified the workers themselves into shared code, because the duplication had shifted from platform machinery to business logic.
+
+Neither iteration was wasted. The first one taught me the shape of the problem. The second one solved the part I'd left on the table. Build for what you know. Refactor when the code tells you to.
 
 Until we meet again, folks. Happy coding! ✌️
 
@@ -289,5 +339,6 @@ Until we meet again, folks. Happy coding! ✌️
 ### Resources
 
 - [Previous post: Background Tasks in KMP](/posts/kmp_background_tasks/)
+- [Meeseeks](https://docs.meeseeks.mattramotar.dev/introduction)
 - [WorkManager Documentation](https://developer.android.com/topic/libraries/architecture/workmanager)
 - [BGTaskScheduler Documentation](https://developer.apple.com/documentation/backgroundtasks)
