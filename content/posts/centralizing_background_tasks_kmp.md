@@ -322,7 +322,7 @@ Not every case of duplication warrants a library. With one or two background tas
 If you want to dig into the implementation, here are the pull requests for each iteration:
 
 - [First approach: Centralizing platform boilerplate](https://github.com/thomaskioko/tv-maniac/pull/759)
-- [Unified approach: Shared workers and scheduler]()
+- [Unified approach: Shared workers and scheduler](https://github.com/thomaskioko/tv-maniac/pull/774)
 
 
 ## Final Thoughts
