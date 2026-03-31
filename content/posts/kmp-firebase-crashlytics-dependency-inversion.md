@@ -151,7 +151,7 @@ This is where the setup pays off. Say I want to add [Sentry](https://sentry.io/)
 
 Every file in the project depends on the `Logger` interface, not on Kermit, not on Firebase, and not on any concrete implementation. Because of that, I was able to completely change what happens behind that interface without any consumer knowing or caring about the implementation.
 
-The multibinding and composite pattern make the wiring clean, but they only work because the dependency points the right way. Consumers depend on the abstraction. Implementations depend on the abstraction. Nothing depends on the concrete. That's dependency inversion, and it's what let me add Crashlytics across the entire codebase with zero changes to any consumer.
+The multibinding and composite pattern make the wiring clean, but they only work because the dependency points the right way. Consumers depend on the abstraction. Implementations depend on the abstraction. Nothing depends on the concrete  implementation. That's dependency inversion, and it's what let me add Crashlytics across the entire codebase with zero changes to any consumer.
 
 Until we meet again, folks. Happy coding! ✌️
 
