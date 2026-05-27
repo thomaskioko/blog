@@ -1,5 +1,5 @@
 ---
-title: "Using Roborazzi for Android Screenshot Testing"
+title: "Android Screenshot Testing with Roborazzi"
 date: "2024-05-03"
 draft: false
 hideToc: true
@@ -31,7 +31,7 @@ dependencies {
 }
 ```
 
-Next, add the Roborazzi Gradle plugin to your project's `build.gradle`:
+Apply the Roborazzi Gradle plugin in the project `build.gradle`:
 
 ```kotlin
 plugins {
@@ -39,9 +39,9 @@ plugins {
 }
 ```
 
-## Writing Our First Screenshot Test
+## Implement screenshot tests
 
-Let's create a screenshot test for one of our screens. We'll use ShowDetailsScreen as an example.
+Create a screenshot test for a screen using `ShowDetailsScreen` as an example.
 
 ```kotlin
 @RunWith(RobolectricTestRunner::class)
@@ -69,16 +69,15 @@ class ShowDetailsScreenScreenshotTest {
 }
 ```
 
-Let's break down the annotations:
+Annotate the test class as follows:
+- `@RunWith(RobolectricTestRunner::class)`: Instructs JUnit to use Robolectric.
+- `@Config(sdk = [33])`: Specifies the Android SDK version.
+- `@GraphicsMode(GraphicsMode.Mode.NATIVE)`: Enables hardware accelerated rendering for accurate screenshots.
+- `@LooperMode(LooperMode.Mode.PAUSED)`: Manages the main thread Looper.
 
-- `@RunWith(RobolectricTestRunner::class)`: This tells JUnit to use Robolectric to run the tests
-- `@Config(sdk = [33])`: Specifies the Android SDK version to emulate
-- `@GraphicsMode(GraphicsMode.Mode.NATIVE)`: Enables hardware-accelerated rendering for more accurate screenshots
-- `@LooperMode(LooperMode.Mode.PAUSED)`: Controls how Robolectric handles the main thread's Looper
+## Customize capture options
 
-### Customizing Screenshot Capture
-
-Roborazzi allows you to customize various aspects of screenshot capture. Here's an example of how to set up custom options:
+Roborazzi supports customization of screenshot capture aspects. Configure custom options as shown:
 
 ```kotlin
 val DefaultRoborazziOptions = RoborazziOptions(
@@ -87,10 +86,11 @@ val DefaultRoborazziOptions = RoborazziOptions(
 )
 ```
 
-These options set up pixel-perfect matching `changeThreshold = 0f` and reduce the size of the PNG files `resizeScale = 0.5` to save storage space.
+These options establish pixel perfect matching with `changeThreshold = 0f` and reduce PNG file size using `resizeScale = 0.5` to conserve storage.
 
-Testing Across Multiple Devices and Themes
-Roborazzi makes it easy to test across different device configurations and themes:
+## Verify multiple configurations
+
+Test across different device configurations and themes using the following pattern:
 
 ```kotlin
 enum class DefaultTestDevices(val spec: String) {
@@ -111,7 +111,7 @@ fun <A : ComponentActivity> AndroidComposeTestRule<ActivityScenarioRule<A>, A>.c
 }
 ```
 
-The `DefaultTestDevices` enum defines the device configurations to test (in this case, just a Pixel 7). The `captureMultiDevice` function uses this to capture screenshots for each defined device, and also captures both light and dark themes using the captureMultiTheme function and specifies the directory to store the screenshots.
+The `DefaultTestDevices` enum defines configurations including the Pixel 7. The `captureMultiDevice` function captures screenshots for defined devices and themes.
 
 ```kotlin
 fun <A : ComponentActivity> AndroidComposeTestRule<ActivityScenarioRule<A>, A>.captureMultiTheme(
@@ -121,12 +121,9 @@ fun <A : ComponentActivity> AndroidComposeTestRule<ActivityScenarioRule<A>, A>.c
   shouldCompareDarkMode: Boolean = true,
   content: @Composable () -> Unit,
 ) {
-
-  // Set qualifiers from specs
   RuntimeEnvironment.setQualifiers(deviceSpec)
 
   val darkModeValues = if (shouldCompareDarkMode) listOf(true, false) else listOf(false)
-
   var darkMode by mutableStateOf(true)
 
   this.setContent {
@@ -144,7 +141,6 @@ fun <A : ComponentActivity> AndroidComposeTestRule<ActivityScenarioRule<A>, A>.c
   darkModeValues.forEach { isDarkMode ->
     darkMode = isDarkMode
     val darkModeDesc = if (isDarkMode) "dark" else "light"
-
     val filename = overrideFileName ?: name
 
     this.onRoot()
@@ -156,54 +152,40 @@ fun <A : ComponentActivity> AndroidComposeTestRule<ActivityScenarioRule<A>, A>.c
 }
 ```
 
-These utility functions provide several benefits:
-- **Multi-device testing:** The captureMultiDevice function allows you to capture screenshots for multiple device configurations (in this case, a Pixel 7).
-- **Theme testing:** The captureMultiTheme function captures screenshots in both light and dark themes.
-- **Customizable options:** The DefaultRoborazziOptions set up pixel-perfect matching and reduce the size of the PNG files.
-- **Flexible naming:** The functions allow for custom naming of the screenshot files.
+Utility functions provide multi device testing, theme verification, and flexible file naming.
 
-## Running Tests and Reviewing Results
+## Execute tests and review results
 
-To run the tests, use the following Gradle command:
+Run tests using the following Gradle command:
 
 ```
 ./gradlew verifyRoborazziDebug
 ```
 
-The first time you run this, Roborazzi will generate reference images. On subsequent runs, it will compare the new screenshots against these references.
-If there are differences, you can review them using the following command:
+Roborazzi generates reference images on the first execution. Subsequent runs compare new screenshots against these references. Review differences using this command:
 
 ```
 ./gradlew compareRoborazziDebug
 ```
 
-This command opens a web interface where you can see side-by-side comparisons of the reference images and the new screenshots.
+This command launches a web interface for side by side comparisons of reference and new images.
 
 ![ShowDetailsLoadedState_dark_compare](https://github.com/user-attachments/assets/241cd73c-242a-40bb-a454-641851106359)
 
+## Evaluation
 
-### My experience with Roborazzi
+I found the Roborazzi setup process smooth and efficient.
 
-My experience with Roborazzi was very smooth and easy to setup.
-
-
-Pros: Very fast, produces vector output for high-quality diffs, easy Gradle integration
-Cons: Doesn't use actual Android framework code, limited to view-based tests
-
-
-- Easy setup and integration with Gradle
-- Uses Robolectric, providing a good balance of speed and accuracy
-- Flexible API allowing for customization of device configs and other parameters
+Advantages include:
+- Rapid execution and high quality vector output for diffs
+- Integration with Gradle and Robolectric
+- Flexible API for device configuration customization
 - Active development and community support
 
-**Cons (Not really buut yeah ...):**
-- Relatively newer compared to some other options, so the ecosystem is still growing 🤓
+The library is relatively new compared to other options, but the ecosystem continues to grow.
 
+## Final considerations
 
-## Conclusion
+Roborazzi provides a flexible method for implementing screenshot testing. It identifies unintended UI changes early, maintaining consistent user experiences and reducing visual regressions. Future improvements may include automatic report uploads to pull requests when changes occur.
 
-Roborazzi provides a powerful and flexible way to implement screenshot testing in your Android projects. By catching unintended UI changes early, you can maintain a consistent user experience and reduce the risk of visual regressions. 
-
-There are some improvements that can be done, especially uploading reports as a comment when there's a change in the pull request. But this will be done in a different post (Maybe 🫣)
-
-That's all folks Until we meet again. ✌️
+Until we meet again, folks. Happy coding! ✌️

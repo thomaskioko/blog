@@ -1,4 +1,4 @@
----
+------
 title: "Custom Ktor Plugin - Guarding Authenticated Requests"
 date: "2026-03-18"
 draft: false
@@ -9,9 +9,9 @@ series: "Tv Maniac Journey"
 
 In an [earlier post](/posts/intercepting_network_requests/), I set up `HttpResponseValidator` to intercept error responses and map them into a sealed `ApiResponse` type. That worked well for *handling* errors after they happen. This post goes a step further: preventing unauthorized requests from ever reaching the network using a Ktor Custom Plugin.
 
-The Trakt API exposes both public endpoints (trending shows, popular shows) and authenticated ones (watchlist, calendar, user lists). Previously, the client treated them all the same. Every data source called `httpClient.safeRequest { ... }` regardless of whether the endpoint needed auth or not.
+This handles errors after they occur. I am now preventing unauthorized requests from reaching the network using a Ktor Custom Plugin.
 
-I then added a call in the repository that checks if the user is authenticated and returning early.
+The Trakt API includes both public and authenticated endpoints. Previously, data sources called `httpClient.safeRequest { ... }` without differentiating between them. I initially added manual login checks to repositories:
 
 ```kotlin
 @Inject
@@ -24,20 +24,20 @@ public class DefaultUserRepository(
     }
 }
 ```
-This approach looks good at first glance. But, it doesn't scale well. If we add a new API call that needs authentication, we need to add the Trakt Api dependency and remember to add this check.
 
-## Scattered Implementation
+This approach does not scale. Adding new authenticated endpoints requires manually adding dependencies and checks.
 
-There was no consistent way to enforce auth requirements across the codebase. Some data sources checked auth state before calling the API. Others didn't. Background sync interactors would fire off network requests for logged-out users, only to get errors. Auth enforcement was scattered across individual call sites with no single place to manage it.
+## Scattered enforcement limitations
 
-The HTTP layer didn't help either. Ktor's `Auth` plugin would return `null` tokens for unauthenticated users, but the request would still go out, fail with a 401, and surface as an error in the UI. For endpoints like the watchlist or calendar, these requests were guaranteed to fail. The client already had enough information to know that, but nothing was acting on it.
+The codebase lacked a consistent method for enforcing authentication. Some data sources checked state before API calls while others did not. Background sync interactors occasionally attempted network requests for logged out users, leading to errors.
 
+Ktor's `Auth` plugin would return null tokens for unauthenticated users, but requests still reached the network and failed with 401 errors. For endpoints requiring authentication, these failures were predictable.
 
-## Building an Auth Guard Plugin
+## Auth guard plugin implementation
 
-Instead of spreading auth checks across every data source, I moved enforcement to the HTTP layer with a custom Ktor client plugin. The plugin intercepts requests *before* they leave the client, checks a request attribute, and short-circuits if auth is required but the user isn't logged in.
+I moved enforcement to the HTTP layer using a custom Ktor client plugin. The plugin intercepts requests, checks an attribute, and short circuits if the user is unauthenticated.
 
-Ktor's [`createClientPlugin`](https://ktor.io/docs/client-custom-plugins.html) API is designed for exactly this kind of cross-cutting concern. You define a configuration class, install the plugin on your `HttpClient`, and hook into the request/response pipeline. The `onRequest` hook runs before every outgoing request, which makes it the right place to enforce auth. Our plugin reads the `RequiresAuth` attribute, checks the user's auth state, and throws if the request needs auth but doesn't have it.
+Using `createClientPlugin` allows defining a configuration and hooking into the request pipeline. The `onRequest` hook runs before outgoing requests to enforce requirements.
 
 ```kotlin
 internal val TraktAuthGuard = createClientPlugin("TraktAuthGuard", ::TraktAuthConfig) {
@@ -53,12 +53,12 @@ internal val TraktAuthGuard = createClientPlugin("TraktAuthGuard", ::TraktAuthCo
     }
 }
 ```
-One thing worth noting: `onRequest` hooks can inspect and modify requests, but they can't return synthetic responses. You *can* use `return@onRequest` to exit the hook early, but that just skips the rest of the hook — the request still goes out to the network. To actually prevent the request from being sent, you need to throw. That's why the plugin uses an exception. But we don't want that exception leaking across layers, so the goal is to catch it as close to the throw site as possible and convert it into something the rest of the app already understands.
 
+Ktor's `onRequest` hooks cannot return synthetic responses. Preventing a request requires throwing an exception. I catch this exception at the network boundary to convert it into a standard response type.
 
-## Handling Network Exceptions
+## Exception handling at the network boundary
 
-The `safeRequest` extension from the [earlier post](/posts/intercepting_network_requests/) wraps all Ktor exceptions into `ApiResponse` variants. It's the natural boundary between what Ktor throws and what the rest of the app works with. So that's where we catch `AuthenticationException` and convert it into `ApiResponse.Unauthenticated`:
+The `safeRequest` extension wraps Ktor exceptions into `ApiResponse` variants. I catch `AuthenticationException` and convert it to `ApiResponse.Unauthenticated`:
 
 ```kotlin
 suspend inline fun <reified T> HttpClient.safeRequest(
@@ -71,21 +71,16 @@ suspend inline fun <reified T> HttpClient.safeRequest(
         ApiResponse.Unauthenticated
     } catch (exception: ClientRequestException) {
         ApiResponse.Error.HttpError(...)
-    } catch (e: SerializationException) {
-        ApiResponse.Error.SerializationError(...)
     } catch (e: Exception) {
         ApiResponse.Error.GenericError(...)
     }
 ```
 
-`ApiResponse.Unauthenticated` is a dedicated variant on the sealed class, distinct from HTTP errors. A 401 from the server means "your token was rejected." `Unauthenticated` means "we knew you weren't logged in and didn't bother asking." The distinction matters because downstream code can handle them differently — retry with a refreshed token for the former, skip silently for the latter.
+`ApiResponse.Unauthenticated` indicates the request was skipped because the user was logged out. This allows downstream code to differentiate between server rejections (401) and client side guard triggers.
 
-The exception exists because of a Ktor limitation in the plugin layer, but it never escapes the network boundary. Everything upstream sees a regular `ApiResponse` and handles it through existing paths. No special cases, no leaking abstractions.
+## Declarative auth requirements
 
-
-## One Method Call per Data Source
-
-With the exception contained, the next step was making auth requirements declarative at the call site. `authSafeRequest` checks auth state *before* the request reaches the plugin, returning `ApiResponse.Unauthenticated` early if the user isn't logged in. If they are, it sets the `RequiresAuth` attribute and delegates to `safeRequest`:
+I created `authSafeRequest` to check auth state before a request reaches the plugin. It returns `ApiResponse.Unauthenticated` early if the user is logged out or sets the `RequiresAuth` attribute and delegates to `safeRequest`:
 
 ```kotlin
 suspend inline fun <reified T> HttpClient.authSafeRequest(
@@ -101,12 +96,10 @@ suspend inline fun <reified T> HttpClient.authSafeRequest(
 }
 ```
 
-This creates a two-layer defense. The `authSafeRequest` pre-check is the first line — it handles the common case where a logged-out user triggers a fetch. The plugin acts as a safety net for the narrow race where a user logs out between the pre-check and the actual request execution, or for any caller that sets `RequiresAuth` without going through `authSafeRequest`.
-
-With this in place, the migration is straightforward. Every auth-required endpoint switched from `safeRequest` to `authSafeRequest`:
+This provides a two layer defense. The pre-check handles common cases, while the plugin serves as a safety net for race conditions or direct `RequiresAuth` usage. Data sources now explicitly define requirements:
 
 ```kotlin
-// Public endpoint, no auth needed
+// Public endpoint
 override suspend fun getUser(userId: String): ApiResponse<TraktUserResponse> =
     httpClient.safeRequest { ... }
 
@@ -115,46 +108,22 @@ override suspend fun getUserList(userId: String): ApiResponse<List<TraktPersonal
     httpClient.authSafeRequest { ... }
 ```
 
-The difference is one method call. When you read a data source, the choice between `safeRequest` and `authSafeRequest` tells you immediately whether that endpoint requires authentication. No need to check external docs or trace through auth middleware.
+## Unauthenticated user experience
 
+When a logged out user triggers an authenticated fetch, `authSafeRequest` returns `ApiResponse.Unauthenticated` without making an HTTP call. The Store fetcher maps this to an error, and the UI falls back to local database content. No request leaves the device, and the user sees cached data without error messages.
 
-## What Happens to Unauthenticated Users
+## Verification strategy
 
-This is where the layering pays off. When a logged-out user opens a screen that triggers an auth-required fetch:
+I use Ktor's `MockEngine` for three levels of testing.
 
-1. `authSafeRequest` pre-checks auth state and returns `ApiResponse.Unauthenticated` — no HTTP call is made
-2. The Store's fetcher maps this to `FetcherResult.Error`
-3. The Store falls back to its `SourceOfTruth` (local database)
-4. The user sees cached data, or an empty state if there's nothing cached
+**Plugin tests** verify the guard matrix including authenticated and unauthenticated states. Tests confirm the plugin throws `AuthenticationException` or permits the request based on the `RequiresAuth` attribute.
 
-No request ever leaves the device. No error toast. No special handling in the domain layer. The user simply sees what's available locally, and when they log in, the sync kicks in naturally.
+**Extension tests** ensure `authSafeRequest` returns `ApiResponse.Unauthenticated` early for logged out users. They also verify `safeRequest` converts `AuthenticationException` to the correct variant.
 
+**Data source integration tests** verify the full stack from call site to mock server response. These confirm correct request construction and auth guard behavior.
 
-## Testing
+## Final considerations
 
-Three layers of tests cover different concerns, all using Ktor's `MockEngine`.
-
-**Plugin tests** verify the guard in isolation — the matrix of `RequiresAuth` present/absent crossed with authenticated/not. Four cases, each asserting the plugin either throws `AuthenticationException` or lets the request through.
-
-**Extension tests** verify that `authSafeRequest` returns `ApiResponse.Unauthenticated` early when the user isn't logged in, and that `safeRequest` catches any `AuthenticationException` from the plugin layer and converts it to `Unauthenticated` rather than letting it propagate.
-
-**Data source integration tests** exercise the full stack: data source calling `authSafeRequest`, the plugin intercepting, and the mock server responding. These verify request construction (method, path, query params, body) alongside the auth guard behavior. When auth is missing, the data source returns `ApiResponse.Unauthenticated` — the same shape downstream code handles for all auth failures, so nothing needs to care *why* the request was skipped.
-
-JSON fixtures live in `jvmTest/resources` and are loaded via a `loadJson()` helper, keeping tests readable and fixture data versioned alongside the test code.
-
-
-## Wrapping Up
-
-We moved from implicit, scattered auth handling to explicit, declarative enforcement at the HTTP layer. Adding a new auth-required endpoint means switching one method call from `safeRequest` to `authSafeRequest`. The plugin handles the rest.
-
-The pattern here is the same one that keeps coming up across TvManiac: push decisions to the lowest layer that has enough information to make them, and keep the layers above unaware of the details. The network layer knows about auth state, so it enforces auth. Everything above just works with `ApiResponse`.
+I transitioned from scattered auth checks to declarative enforcement at the HTTP layer. This follows the pattern of pushing decisions to the lowest capable layer while maintaining a consistent `ApiResponse` surface for upstream consumers.
 
 Until we meet again, folks. Happy coding! ✌️
-
-
-### References
-
-- [TvManiac Repository](https://github.com/c0de-wizard/tv-maniac)
-- [Ktor Client Plugins Documentation](https://ktor.io/docs/client-custom-plugins.html)
-- [Ktor MockEngine Documentation](https://ktor.io/docs/client-testing.html)
-- [Intercepting Ktor Network Responses in KMP](/posts/intercepting_network_requests/)

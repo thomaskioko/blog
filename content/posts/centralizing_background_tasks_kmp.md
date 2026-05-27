@@ -7,40 +7,29 @@ tags: ["KMP", "WorkManager", "BGTaskScheduler", "background-tasks", "architectur
 series: "Tv Maniac Journey"
 ---
 
-# Intro
-
 In a [previous post](/posts/kmp_background_tasks/), I walked through setting up background tasks in KMP for token refresh. After that post, I added two more background tasks: library sync and episode notifications. Same pattern, same structure. That's when I noticed a gap in my implementation.
 
-Each new task meant copy pasting the same registration, scheduling, and execution boilerplate with slight variations. Three tasks across two platforms, and I was already seeing inconsistencies that made debugging harder than it needed to be.
+I subsequently added two more background tasks for library sync and episode notifications using the same pattern. This revealed a gap in the implementation.
 
-This post covers how I centralized all background task logic, first by extracting platform boilerplate into shared registries, and then by going a step further and unifying everything into a single common API.
+Each new task required copy pasting registration, scheduling, and execution boilerplate with slight variations. Managing three tasks across two platforms resulted in inconsistencies that complicated debugging.
 
+This covers centralizing background task logic by extracting platform boilerplate into shared registries and unifying the implementation into a single common API.
 
-## What Went Wrong
+## Implementation inconsistencies
 
-The original pattern was sound in isolation. But once I had three tasks on each platform, the duplication became a problem.
+The original pattern worked in isolation, but duplication became problematic with multiple tasks.
 
-On **iOS**, each task repeated the same six steps: register with `BGTaskScheduler`, build a `BGAppRefreshTaskRequest`, submit it, filter by identifier in the handler, manage the execution window with an expiration callback, and reschedule after completion. That's a lot of surface area to get wrong, and each task implemented it slightly differently.
+On iOS, each task repeated six steps including registration with `BGTaskScheduler`, building a `BGAppRefreshTaskRequest`, and managing execution windows with expiration callbacks. This large surface area increased the risk of errors and inconsistent implementations.
 
-On **Android**, each feature required *two* classes: a `*Tasks` class for scheduling and a `*Worker` class for execution. Three features meant six classes, plus a factory that had to manually map every worker class name.
+On Android, each feature required a `*Tasks` class for scheduling and a `*Worker` class for execution. Three features resulted in six classes and a factory requiring manual mapping of worker class names.
 
-Three tasks, three different approaches to concurrency and error handling. None of them were wrong individually. But when you're debugging a background task that didn't fire at 2am, the last thing you want is to remember which concurrency pattern *this particular task* uses.
+Background tasks fail silently without proper logging or crash reporting. Debugging requires manual intervention, and fixes must be applied across all tasks to maintain consistency.
 
+## Platform boilerplate extraction
 
-## The Inconsistency
+I extracted platform boilerplate into a shared library in `core/tasks/` to ensure each task only declares unique properties.
 
-When background tasks fail, they fail silently. Of course you can add logs and crash reporting for that, but I am yet to implement that in my project. So debugging had to happen manually for me. After debugging and finding what the issue, I need to make sure all tasks apply the fix.
-
-There's also the onboarding cost. If another engineer decided to contribite to the project and they need to add a background task, which of the existing implementations do they follow? They'll pick one, probably the most recent, and introduce yet another slight variation.
-
-Why I was introducing background tasks, the architecture worked. But as I contunied adding more features, I saw the issue; Inconsistency!
-
-
-## The First Approach
-
-The first fix was straightforward: extract the platform boilerplate into a shared library in `core/tasks/` and have each task declare only what's unique to it.
-
-On **iOS**, each task implemented a `BackgroundTask` interface:
+On iOS, tasks implement a `BackgroundTask` interface:
 
 ```kotlin
 interface BackgroundTask {
@@ -50,9 +39,9 @@ interface BackgroundTask {
 }
 ```
 
-A `BGTaskRegistry` handled all the registration, scheduling, execution window management, and rescheduling.
+A `BGTaskRegistry` manages registration, scheduling, execution window management, and rescheduling.
 
-On **Android**, each task implemented `BackgroundWorker`:
+On Android, tasks implement `BackgroundWorker`:
 
 ```kotlin
 interface BackgroundWorker {
@@ -63,9 +52,9 @@ interface BackgroundWorker {
 }
 ```
 
-A single `DispatchingWorker` replaced all three `CoroutineWorker` subclasses. It looked up the registered worker by name and delegated execution. The worker factory went from a manual switch statement to a single line.
+A single `DispatchingWorker` replaced multiple `CoroutineWorker` subclasses by looking up registered workers by name. The worker factory collapsed to a single line.
 
-The before/after on a task implementation tells the story. Here's the iOS token refresh task:
+The refactored iOS token refresh task illustrates the reduction in boilerplate.
 
 ##### Before
 
@@ -93,12 +82,8 @@ class IosTraktAuthTasks(
     private fun handleTask(task: BGTask?) {
        //Task logic
     }
-
-    private suspend fun performRefresh(): Boolean { /* ... */ }
 }
 ```
-
-Registration, scheduling, execution window management, expiration handling, rescheduling are all inlined. Now multiply that by three tasks.
 
 ##### After
 
@@ -335,8 +320,7 @@ Neither iteration was wasted. The first one taught me the shape of the problem. 
 
 Until we meet again, folks. Happy coding! ✌️
 
-
-### Resources
+## Resources
 
 - [Previous post: Background Tasks in KMP](/posts/kmp_background_tasks/)
 - [Meeseeks](https://docs.meeseeks.mattramotar.dev/introduction)
