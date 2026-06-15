@@ -145,7 +145,7 @@ The connection happens in `AppDelegate` with the same config check shown earlier
 
 ## What About Adding More Frameworks?
 
-This is where the setup pays off. Say I want to add [Sentry](https://sentry.io/) tomorrow. All I need is a new `SentryLogger` that implements `Logger` and overrides the methods I care about, like `error()`, `recordException()`, and maybe `setUserId()`. The multibinding annotation ensures the DI framework discovers it automatically and adds it to the set. No consumer changes. Errors flow to both Firebase and Sentry simultaneously.
+Thanks to Dependency Inversion and the project setup this should not be a painful process. Say I want to add [Sentry](https://sentry.io/) tomorrow. All I need is a new `SentryLogger` that implements `Logger` and overrides the methods I care about, like `error()`, `recordException()`, and maybe `setUserId()`. The multibinding annotation ensures the DI framework discovers it automatically and adds it to the set. No consumer changes. Errors flow to both Firebase and Sentry simultaneously.
 
 ## Wrapping Up
 
