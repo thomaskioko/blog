@@ -1,5 +1,5 @@
----
-title: "Enhancing iOS UI Previews: Swift UI Packages & Kotlin Multiplatform Mobile"
+------
+title: "Enhancing iOS UI Previews with Swift Packages"
 date: "2024-09-07"
 draft: false
 hideToc: true
@@ -7,122 +7,79 @@ tags: ["iOS", "SwiftUI", "SwifUI Previews", "KMM"]
 series: "Tv Maniac Journey"
 ---
 
-![Photo by Akshar Dave🌻 on Unsplash](https://miro.medium.com/v2/resize:fit:828/format:webp/0*nTjNIEs0mpZrydPw)
-
-# Intro
-
 Remember our adventure in [Going Modular — The Kotlin Multiplatform Way?](https://thomaskioko.me/posts/going_modular_the_kotlin_multiplatform_way/) Well, this is a continuation of that. (Sort of 😁). I say sort of because this article focuses on the Swift side of things. We will explore how creating UI components in a separate Swift package can significantly improve the development experience when working on the iOS App.
 
-If you are interested in the code, [here is the Pull Request](https://github.com/thomaskioko/tv-maniac/pull/286). Let's get this party started.
+I am now focusing on the Swift implementation and how creating UI components in separate Swift packages improves the iOS development experience.
 
-## The KMM Preview Headache 🤕
+The complete source code is available in the [pull request](https://github.com/thomaskioko/tv-maniac/pull/286).
 
-While working with KMM on iOS, one of my biggest headaches is that Previews don't load in XCode. I don't know why XCode does not play nice with KMM. It either takes too long to load or fails. The only way to see what I am creating is by running the application. This is frustrating as it slows development time.
+## iOS preview limitations in KMP
 
+SwiftUI Previews often fail to load or take excessive time when integrated directly with the KMM framework in Xcode. This forces developers to run the full application to verify UI changes, which slows development.
 
-## Enter Separate Swift Packages 📦
-By relocating our UI components into a separate Swift package, we're not just organizing our code, but we're also unlocking a host of benefits that can significantly enhance our development experience:
+## Utilize separate Swift packages
 
-1. **Functional SwiftUI Previews**
-    - By isolating views from the KMM framework, providing real-time UI development feedback, and improving the developer experience, we can load views faster.
+Relocating UI components to dedicated Swift packages provides several advantages:
 
-2. **Improved Reusability**
+- **Functional SwiftUI Previews**: Isolating views from the KMM framework enables faster loading and real time feedback.
+- **Improved Reusability**: Components become modular and easily reusable across the application.
+- **Simplified Testing**: Modular components facilitate implementation of snapshot testing.
+- **Optimized Structure**: A clear hierarchy improves component maintenance and updates.
 
-    - Components can be easily reused across the application, leading to a more modular architecture and reducing code duplication.
+## Application structure implementation
 
+I created two primary packages to organize the UI:
 
-3. **Streamlined Testing**
+- **`SwiftUIComponents`**: Contains shared views including buttons, cards, and poster images.
+- **`TVManiacUI`**: Contains screen specific views such as cast lists and show information components.
 
-    - With this in place, Snapshot testing becomes a viable option for ensuring UI consistency. Coming soon. 🤓
-
-
-4. **Optimized Project Structure**
-
-    - A clear structure makes it easy to maintain and update our components.
-
-
-### App structure:
-
-I ended up creating two packages:
-
-- **SwiftUIComponents:** This package includes common views used in various screens. Colors, Buttons, CardView, PosterImage etc
-- **TVManiacUI:** This Package includes Screen UI Views. eg. CastList, TrailerList, ShowInfoView. etc
-
-Below is what the structure of the App looks like.
+The project structure follows this pattern:
 
 ```
 TvManiac/
 ├── shared/
-│   └── ... (Kotlin shared code)
-├── androidApp/
-│   └── ... (Android-specific code)
 ├── iosApp/
-│   ├── iosApp.xcodeproj
-│   ├── iosApp/
-│   │   └── ... (iOS app-specific code)
 │   └── Modules/
 │       └── SwiftUIComponents/
 │       │   ├── Package.swift
 │       │   └── Sources/
-│       │       └── SwiftUIComponents/
-│       │           └──Components/
-│       │                 ├── BottomNavigation.swift
-│       │                 ├── HeaderContentView.swift
-│       │                 └── ...
-│       │           ├── CollapsibleView.swift
-│       │           ├── TrailerItemView.swift
-│       │           └── ...
 │       └── TVManiacUI/
 │           ├── Package.swift
 │           └── Sources/
-│               └── TVManiacUI/
-│                   └──Models/
-│                       └── SwiftCast.swift
-│                       └── SwiftTrailer.swift
-│                   ├── CastListView.swift
-│                   ├── ShowInfoView.swift
-│                   ├── ProviderListView.swift
-│                   └── ...
 ```
 
+## Implementation process
 
-## Implementing the Approach 🚧
-Integrating a package in XCode is a straightforward process. These are the steps I followed: 
+Integrating these packages into Xcode involves several steps.
 
-1. **Package Creation and Configuration**
+### 1. Configure packages
 
-- Create a new Swift package (`SwiftUIComponents`) using your preferred method (Xcode UI or Swift Package Manager CLI).
-- Configure the `Package.swift` file to specify iOS deployment target and any necessary dependencies.
+Create the `SwiftUIComponents` package and configure the `Package.swift` file to specify deployment targets and dependencies.
 
+### 2. Migrate components
 
-2. **Component Migration**
+Transition SwiftUI views from the main KMP iOS project to the new packages. Ensure components are self contained and do not depend on KMM specific code.
 
-- Migrate SwiftUI views and components from your KMP iOS project to the new package.
-- Refactor as needed to ensure components are self-contained and don't rely on KMM-specific code.
+### 3. Manage dependencies
 
+Declare package relationships within `Package.swift`. I moved dependencies like `SDWebImageSwiftUI` and `YouTubePlayerKit` to these UI packages.
 
-3. **Dependency Management**
+### 4. Integrate into the main project
 
-- If your UI components require a specific package, use Swift Package Manager's dependency declaration to manage package relationships. In my case, I added `SDWebImageSwiftUI` and `YouTubePlayerKit` and removed them from the main app.
+Add the packages to the main iOS project using Xcode's Add Packages feature. Creating a new scheme for the UI framework allows switching between the main application and the UI package for rapid development.
 
+## Resulting previews
 
-4. **Final Step**
+The implementation enables reliable previews for both shared components and full screens.
 
-- In your main iOS project, go to File > Add Packages.
-- Select `SwiftUIComponents` package.
-- (Optional)** Create a new scheme and select the framework, in this case, `SwiftUIComponents.` This allows us to switch between the Main app and the UI package.
-
-With that in place, here's an example of how the project structure looks after implementing this approach. 🥳
-
-##### UI Components Preview
+**Shared Components Preview:**
 ![XcodePreview](https://github.com/user-attachments/assets/ddd1e486-40da-4bb0-b5e3-14cc7061b916)
 
-##### Screen Components Preview
+**Screen Components Preview:**
 ![ScreenComponentsPreview](https://github.com/user-attachments/assets/fa546cc4-e563-4a7b-b734-af1a39d6cc1d)
 
-# Conclusion
-I highly recommend trying this approach. It's made my life easier, my code cleaner, and the general structure better. Next, we might add snapshot tests, a CI/CD job, and more cleanup. 
+## Final considerations
 
-A big shoutout to my colleague Daniel. If you ever read this, thanks for being the best second-class mobile citizen. Until we meet again, folks.
+Using separate Swift packages for UI components simplifies the development workflow and improves code quality. This approach addresses preview performance issues while establishing a modular architecture for the iOS application. Future improvements include automated CI/CD jobs and snapshot testing.
 
-Happy coding! ✌️
+Until we meet again, folks. Happy coding! ✌️
