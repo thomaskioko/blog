@@ -1,7 +1,7 @@
 ---
 title: "Composing Complex Screens with Decompose"
 date: "2026-06-21"
-draft: false
+draft: true
 hideToc: true
 tags: ["KMP", "Decompose", "Architecture", "Jetpack Compose", "SwiftUI", "Android", "iOS", "Metro"]
 series: "Tv Maniac Journey"
@@ -60,31 +60,7 @@ public class DiscoverShowsPresenter(
 
 The inner `PresenterInstance` combined 11 flows into a single state object. The action sealed interface had 19 entries covering featured show clicks, catalog navigation, episode marking, follow and unfollow, Up Next interactions, and everything in between. A unit test had to construct all 17 dependencies just to exercise one piece of behavior.
 
-The data layer mirrored the problem. `DiscoverShowsInteractor` was an aggregate: one `SubjectInteractor` that combined six repository streams (featured, top-rated, popular, trending, upcoming, genres) and emitted a `DiscoverShowsData` bundle.
-
-```kotlin
-// The aggregate interactor that got retired
-public class DiscoverShowsInteractor(
-    private val featuredShowsRepository: FeaturedShowsRepository,
-    private val topRatedShowsRepository: TopRatedShowsRepository,
-    private val popularShowsRepository: PopularShowsRepository,
-    private val trendingShowsRepository: TrendingShowsRepository,
-    private val upcomingShowsRepository: UpcomingShowsRepository,
-    private val genreRepository: GenreRepository,
-) : SubjectInteractor<Unit, DiscoverShowsData>() {
-
-    override fun createObservable(params: Unit): Flow<DiscoverShowsData> = combine(
-        genreRepository.observeGenresWithShows(),
-        featuredShowsRepository.observeFeaturedShows(),
-        topRatedShowsRepository.observeTopRatedShows(),
-        popularShowsRepository.observePopularShows(),
-        trendingShowsRepository.observeTrendingShows(),
-        upcomingShowsRepository.observeUpcomingShows(),
-    ) { ... }
-}
-```
-
-Changing anything in the featured section meant reading the entire interactor, the entire presenter, and its entire test suite. Every section's state update could affect every other section's rendering. There was no seam.
+The data layer mirrored the problem. `DiscoverShowsInteractor` was an aggregate that combined six repository streams (featured, top-rated, popular, trending, upcoming, genres) into a single `DiscoverShowsData` bundle. Changing anything in the featured section meant reading the entire interactor, the entire presenter, and its entire test suite. Every section's state update could affect every other section's rendering. There was no clean boundary between the sections.
 
 ## What Decompose offers inside a screen
 
@@ -180,9 +156,9 @@ public class DiscoverShowsPresenter(
 }
 ```
 
-From 17 dependencies down to 5. From an 11-flow combine down to 2. From 19 actions down to 3. The host knows only what it needs to coordinate: the two sections that contribute to screen-level refresh state, navigation to search, and message clearing fanout.
+From 17 dependencies down to 5. From an 11-flow combine down to 2. From 19 actions down to 3. The host knows only what it needs to coordinate: the two sections that contribute to screen-level refresh state, navigation to search, and clearing messages on both sections.
 
-## How codegen wires the child graphs
+## Declaring each child
 
 Each child presenter is annotated with `@ChildPresenter`:
 
@@ -200,25 +176,7 @@ public class DiscoverFeaturedPresenter(
 ) : ComponentContext by componentContext { ... }
 ```
 
-KSP picks this up and generates a `DiscoverFeaturedChildGraph` interface at build time:
-
-```kotlin
-// Generated — do not edit
-@GraphExtension(DiscoverChildScope::class)
-public interface DiscoverFeaturedChildGraph {
-    public val discoverFeaturedPresenter: DiscoverFeaturedPresenter
-
-    @ContributesTo(DiscoverRoot::class)
-    @GraphExtension.Factory
-    public interface Factory {
-        public fun createDiscoverFeaturedGraph(
-            @Provides componentContext: ComponentContext,
-        ): DiscoverFeaturedChildGraph
-    }
-}
-```
-
-The `@ContributesTo(DiscoverRoot::class)` on the factory tells Metro to contribute this factory into any graph that has `DiscoverRoot` as its scope. No manual `build.gradle.kts` edits are needed, and no binding module to hand-write. The Android graph picks it up and so does the iOS framework graph. Both platforms get the same child presenter instances resolved through the same DI chain.
+From that annotation, code generation produces the `DiscoverFeaturedChildGraph.Factory` the host injects, and contributes it into both the Android and iOS dependency graphs with no `build.gradle.kts` edits and no hand-written binding. How that code generation works, and how the same machinery powers navigation, is a bigger topic that deserves its own series. For this post the part that matters is the annotation: it marks a class as a child component and lets the host create it with its own `childContext`.
 
 ## A child owns its slice end to end
 
@@ -260,28 +218,15 @@ private fun observeAuthState() {
 }
 ```
 
-When the user logs in, the Featured section triggers a refresh independently. The Catalog section does the same for its own data. Neither section knows the other exists. The host does not need to orchestrate auth-driven refreshes; each child responds to the signal directly.
+When the user logs in, the Featured section triggers a refresh independently. The Catalog section does the same for its own data. Neither section knows the other exists. The host does not need to manage auth-driven refreshes; each child responds to the signal directly.
 
-The data decomposition mirrors the presenter split. The aggregate `DiscoverShowsInteractor` is retired. In its place are five focused interactors: `ObserveFeaturedShowsInteractor`, `ObserveTopRatedShowsInteractor`, `ObservePopularShowsInteractor`, `ObserveTrendingShowsInteractor`, and `ObserveUpcomingShowsInteractor`. Each one wraps a single repository call:
-
-```kotlin
-@Inject
-public class ObserveFeaturedShowsInteractor(
-    private val repository: FeaturedShowsRepository,
-) : SubjectInteractor<Unit, List<ShowEntity>>() {
-
-    override fun createObservable(params: Unit): Flow<List<ShowEntity>> =
-        repository.observeFeaturedShows()
-}
-```
-
-A focused interactor is trivial to test and trivial to trace when something goes wrong. The aggregate hid which repository triggered a recomposition; the per-category interactors make that obvious.
+The data decomposition mirrors the presenter split. The aggregate `DiscoverShowsInteractor` is retired, replaced by five focused interactors that each wrap a single repository call. A focused interactor is trivial to test and trivial to trace when something goes wrong. The aggregate hid which repository triggered a recomposition; the per-category interactors make that obvious.
 
 ## How the host coordinates without coupling
 
 There are no presenter-to-presenter dependencies. The host exposes child presenters as public properties. The children do not hold references to each other or to the host.
 
-Fan-out in the host dispatch is explicit and deliberate:
+The host dispatch forwards each action explicitly and deliberately:
 
 ```kotlin
 public fun dispatch(action: DiscoverShowAction) {
@@ -400,7 +345,7 @@ Unit tests for the featured section no longer require constructing interactors f
 
 **Reach for child contexts when** a screen has independent, simultaneously-alive blocks that each manage state on their own. If the blocks have separate data sources, separate loading states, or separate actions that have no cross-section meaning, they are candidates for their own child presenter.
 
-**Accept the trade-off.** More files, more generated graph interfaces, and a small amount of explicit fan-out in the host dispatch. For a screen like Discover, that trade-off is worth it. For a simple form screen with a single submit action, it is overkill.
+**Accept the trade-off.** More files, more generated graph interfaces, and a small amount of explicit forwarding in the host dispatch. For a screen like Discover, that trade-off is worth it. For a simple form screen with a single submit action, it is overkill.
 
 The test for whether to split: could you write a focused unit test for one block without knowing anything about the other blocks? If not, the coupling is already there, and it belongs somewhere explicit.
 
@@ -419,9 +364,6 @@ Decompose's `childContext` gave me the right primitive. The codegen made the per
 - [Component-based Approach: Implementing Screens with Decompose (Artur Artikov, ITNEXT)](https://itnext.io/component-based-approach-implementing-screens-with-the-decompose-library-2b47f3e40bf6)
 - [Decompose on GitHub](https://github.com/arkivanov/Decompose)
 - [Decompose documentation](https://arkivanov.github.io/Decompose/)
-- [Decentralizing Navigation in KMP: Part 1](/posts/decentralizing_navigation_kmp/)
-- [Decentralizing Navigation in KMP: Part 2](/posts/decentralizing_navigation_kmp_part2/)
-- [Decentralizing Navigation in KMP: Part 3](/posts/decentralizing_navigation_kmp_part3/)
 
 This is a post in the **Tv Maniac Journey** series.
 
