@@ -1,4 +1,4 @@
-------
+---
 title: "Dynamic Theming: Building on a Design System Foundation"
 date: "2025-12-10"
 draft: false

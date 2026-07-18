@@ -1,4 +1,4 @@
-------
+---
 title: "Building a Custom Ktor Plugin to Guard Authenticated Routes"
 date: "2026-03-18"
 draft: false
