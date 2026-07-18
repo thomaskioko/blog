@@ -1,17 +1,25 @@
 ---
-title: "Composing Complex Screens with Decompose"
+title: "Breaking Up a Complex Screen with Decompose"
 date: "2026-06-21"
-draft: true
+draft: false
 hideToc: true
 tags: ["KMP", "Decompose", "Architecture", "Jetpack Compose", "SwiftUI", "Android", "iOS", "Metro"]
 series: "Tv Maniac Journey"
 ---
 
-The three-part Navigation Refactor series covered how Decompose drives screen-to-screen movement in Tv Maniac: decentralized routes, codegen-wired bindings, and platform-specific renderers. That story was about what happens between screens. This post is about what happens inside one.
+This is the first post in a multiple part series on building Tv Maniac's screens and navigation with Decompose. The next two posts will cover navigation and codegen. I'll walk you through how I use Decompose to navigate between screens while keeping screens and features free of navigation logic. Code generation writes all the DI bindings, so adding a new feature and wiring up its navigation stays simple.
 
-The Discover screen is the most complex screen in the app. It is the first thing a user sees, it holds featured shows, upcoming picks, a continue-watching row, and the full show catalog, and for a long time all of that lived inside a single presenter. I kept telling myself the file was manageable. It was not.
+[Tv Maniac](https://github.com/thomaskioko/tv-maniac) is a Kotlin Multiplatform app that runs on Android and iOS. [Decompose](https://arkivanov.github.io/Decompose/) is the library I use to handle navigation and state on the shared side. Each screen is a component that owns its state and survives configuration changes, much like an Android ViewModel, except the same component drives both the Android and iOS UI.
 
-## When one presenter does too much
+So, let's take a look at how I reworked a complex screen and made it easier to work with, thanks to [Decompose child components](https://arkivanov.github.io/Decompose/component/child-components/).
+
+## The Discover Screen
+
+The Discover screen is the most complex screen in the app. It is the first thing a user sees, and it holds featured shows, upcoming picks, a continue watching row, and the full show catalog. All this was being managed by a single presenter. It grew and became a pain to manage.
+
+![Discover screen components](https://github.com/user-attachments/assets/e04e89e9-8589-4252-b16f-ec8c6346a57b)
+
+## The Overloaded Presenter
 
 The old `DiscoverShowsPresenter` accepted 17 injected dependencies. Here is a trimmed view of its constructor:
 
@@ -58,32 +66,25 @@ public class DiscoverShowsPresenter(
 }
 ```
 
-The inner `PresenterInstance` combined 11 flows into a single state object. The action sealed interface had 19 entries covering featured show clicks, catalog navigation, episode marking, follow and unfollow, Up Next interactions, and everything in between. A unit test had to construct all 17 dependencies just to exercise one piece of behavior.
+The inner `PresenterInstance` combined 11 flows into a single state object. The action sealed interface had 19 entries covering featured show clicks, catalog navigation, episode marking, follow and unfollow, and Up Next interactions.
 
-The data layer mirrored the problem. `DiscoverShowsInteractor` was an aggregate that combined six repository streams (featured, top-rated, popular, trending, upcoming, genres) into a single `DiscoverShowsData` bundle. Changing anything in the featured section meant reading the entire interactor, the entire presenter, and its entire test suite. Every section's state update could affect every other section's rendering. There was no clean boundary between the sections.
+The same problem showed up in the data layer. `DiscoverShowsInteractor` was an aggregate that combined six repository streams (featured, top rated, popular, trending, upcoming, genres) into a single `DiscoverShowsData` bundle. Changing anything in the featured section meant reading the entire interactor, the entire presenter, and its entire test suite. Every section's state update could affect every other section's rendering, and there was no clean boundary between them.
 
-## What Decompose offers inside a screen
+## Choosing childContext over childStack
 
-I had already used Decompose's `childStack` to manage navigation between screens. `childStack` is designed for navigation: it maintains a back stack and only keeps the top-most component fully alive. That works perfectly for going from screen to screen.
+I had already used Decompose's `childStack` to manage navigation between screens. `childStack` is built for navigation: it maintains a back stack and keeps only the topmost component fully alive. That's exactly right for moving from screen to screen.
 
-Inside a single screen, you want the opposite: all sections alive at the same time, each managing its own lifecycle, each owning its own state. Decompose provides `childContext(key = "...")` for exactly this. Calling `childContext` on a `ComponentContext` creates an independent child context with its own lifecycle, `InstanceKeeper`, and coroutine scope. The parent stays alive; all children stay alive simultaneously.
+Inside a single screen, I wanted the opposite. All sections alive at the same time, each managing its own lifecycle, each owning its own state. Decompose has a function for that too: `childContext(key = "...")`. Calling it on a `ComponentContext` creates an independent child context with its own lifecycle, its own `InstanceKeeper`, and its own coroutine scope. The parent stays alive, and so do all the children, simultaneously.
 
-I first encountered a systematic write-up of this pattern in Artur Artikov's "Component-based Approach" series on ITNEXT, which describes organizing screens into independent functional blocks. The pattern fits naturally onto what Decompose already gives you.
+## Splitting the Presenter
 
-The key distinction: `childStack` for navigation (one active child at a time), `childContext` for composition (all children alive together).
-
-## Splitting Discover into a host and four children
-
-The screen now has four child presenters: `DiscoverFeaturedPresenter`, `DiscoverCatalogPresenter`, `DiscoverUpNextPresenter`, and `DiscoverStartWatchingPresenter`. They live in subpackages under `features/discover/presenter/`.
-
-Each child is scoped to a custom `DiscoverChildScope`:
+The screen now has four child presenters: `DiscoverFeaturedPresenter`, `DiscoverCatalogPresenter`, `DiscoverUpNextPresenter`, and `DiscoverStartWatchingPresenter`. They live in subpackages under `features/discover/presenter/`, each scoped to a custom `DiscoverChildScope`:
 
 ```kotlin
-// features/discover/nav/src/commonMain/kotlin/.../discover/nav/scope/DiscoverChildScope.kt
 public abstract class DiscoverChildScope private constructor()
 ```
 
-The scope is just a marker. It tells the DI graph which components belong to the same child lifecycle tier, separate from the activity scope that owns the host.
+The scope is just a marker class. It doesn't do anything on its own. It exists so the DI graph can tell which components belong to the same child lifecycle tier, separate from the activity scope that owns the host. I'll talk about this more in another article.
 
 The host presenter is now thin:
 
@@ -156,9 +157,11 @@ public class DiscoverShowsPresenter(
 }
 ```
 
-From 17 dependencies down to 5. From an 11-flow combine down to 2. From 19 actions down to 3. The host knows only what it needs to coordinate: the two sections that contribute to screen-level refresh state, navigation to search, and clearing messages on both sections.
+From 17 dependencies down to 5. From an 11 flow combine down to 2. From 19 actions down to 3. The host knows only what it needs to coordinate: the two sections that contribute to screen level refresh state, navigation to search, and clearing messages on both sections.
 
-## Declaring each child
+One thing worth pointing out: no presenter holds a reference to another presenter. The host exposes each child as a public property and nothing more; the children don't know the host exists, and they definitely don't know about each other. When `RefreshData` is invoked, the host calls `refresh()` on the two sections that care about it, because it's the only place that knows both of them need to reset together. Anything that concerns only one section, like navigating to a show's detail page or expanding a catalog row, is handled inside that child's own `dispatch` function. The host never sees it.
+
+## Declaring a Child Presenter
 
 Each child presenter is annotated with `@ChildPresenter`:
 
@@ -176,11 +179,11 @@ public class DiscoverFeaturedPresenter(
 ) : ComponentContext by componentContext { ... }
 ```
 
-From that annotation, code generation produces the `DiscoverFeaturedChildGraph.Factory` the host injects, and contributes it into both the Android and iOS dependency graphs with no `build.gradle.kts` edits and no hand-written binding. How that code generation works, and how the same machinery powers navigation, is a bigger topic that deserves its own series. For this post the part that matters is the annotation: it marks a class as a child component and lets the host create it with its own `childContext`.
+That annotation is what triggers code generation to produce the `DiscoverFeaturedChildGraph.Factory` the host injects, and it contributes that graph into both the Android and iOS dependency graphs. This gets rid of boilerplate code I would have to write manually. How that code generation works, and how I use the same annotations to wire up navigation, is a bigger topic that deserves its own post. The part that matters here is just the annotation itself: it marks a class as a child component and lets the host create it through its own `childContext`.
 
-## A child owns its slice end to end
+## What Each Child Owns
 
-`DiscoverFeaturedPresenter` is the clearest example. It manages its own coroutine scope, its own `ObservableLoadingCounter`, its own `UiMessageManager`, and its own auth observation:
+`DiscoverFeaturedPresenter` is the clearest example of what a child gets to own. It manages its own coroutine scope, its own `ObservableLoadingCounter`, its own `UiMessageManager`, and its own auth observation:
 
 ```kotlin
 init {
@@ -218,37 +221,13 @@ private fun observeAuthState() {
 }
 ```
 
-When the user logs in, the Featured section triggers a refresh independently. The Catalog section does the same for its own data. Neither section knows the other exists. The host does not need to manage auth-driven refreshes; each child responds to the signal directly.
+When the user logs in, the Featured section triggers a refresh on its own. The Catalog section does the same for its own data. Neither knows the other exists, and the host doesn't need to manage auth driven refreshes at all. Each child just responds to the signal directly.
 
-The data decomposition mirrors the presenter split. The aggregate `DiscoverShowsInteractor` is retired, replaced by five focused interactors that each wrap a single repository call. A focused interactor is trivial to test and trivial to trace when something goes wrong. The aggregate hid which repository triggered a recomposition; the per-category interactors make that obvious.
+The data layer split mirrors the presenter split. The aggregate `DiscoverShowsInteractor` is gone, replaced by five focused interactors that each wrap a single repository call. A focused interactor is trivial to test and trivial to trace when something goes wrong. The old aggregate hid which repository triggered a recomposition; the per category interactors make that obvious just from the name.
 
-## How the host coordinates without coupling
+## Rendering on Both Platforms
 
-There are no presenter-to-presenter dependencies. The host exposes child presenters as public properties. The children do not hold references to each other or to the host.
-
-The host dispatch forwards each action explicitly and deliberately:
-
-```kotlin
-public fun dispatch(action: DiscoverShowAction) {
-    when (action) {
-        SearchIconClicked -> navigator.navigateTo(SearchRoute)
-        RefreshData -> {
-            featuredPresenter.refresh()
-            catalogPresenter.refresh()
-        }
-        is MessageShown -> {
-            featuredPresenter.clearMessage(action.id)
-            catalogPresenter.clearMessage(action.id)
-        }
-    }
-}
-```
-
-The host knows that `RefreshData` should reset both the featured and catalog sections. The children expose `refresh()` and `clearMessage()` as stable APIs. Anything that concerns only a single section, like navigating to a show detail or clicking "more" on a catalog row, stays inside that child's own dispatch.
-
-## Both platforms, the same children
-
-On **Android**, `DiscoverScreen` passes each child presenter directly to its section composable:
+On **Android**, `DiscoverScreen` passes each child presenter straight to its section composable:
 
 ```kotlin
 @TabUi(presenter = DiscoverShowsPresenter::class, parentScope = ActivityScope::class)
@@ -273,7 +252,7 @@ public fun DiscoverScreen(presenter: DiscoverShowsPresenter) {
 }
 ```
 
-Each section composable calls `collectAsState()` on its own presenter's `StateFlow`. The host state drives only screen-level concerns like the loading indicator and the error view.
+Each section composable calls `collectAsState()` on its own presenter's `StateFlow`. The host state only drives screen level concerns, like the loading indicator and the error view.
 
 ```kotlin
 @Composable
@@ -309,7 +288,7 @@ private struct DiscoverSectionsContent: View {
 }
 ```
 
-Each iOS section view subscribes to its own presenter state using `@StateValue`:
+Each iOS section view subscribes to its own presenter's state through `@StateValue`:
 
 ```swift
 struct DiscoverFeaturedSection: View {
@@ -333,35 +312,29 @@ struct DiscoverFeaturedSection: View {
 }
 ```
 
-The Kotlin-to-Swift name export is worth a quick note. Because KMP flattens namespaces in the Objective-C header, action types across children need distinct names. `FeaturedShowClicked` (in the featured package) and `CatalogShowClicked` (in the catalog package) are both exported unambiguously. Collisions would produce fragile `_`-suffixed names that break whenever module structure changes, so keeping action names distinct across children is part of the contract.
+## The Result
 
-## What the split produced
-
-One `DiscoverShowsPresenter` with 17 dependencies became a host with 5 plus four children, each with 5 to 7 dependencies scoped to their own concern. The 11-flow combine became four independent combines inside their respective children. The 19-action sealed interface was retired in favor of 3 host actions plus per-child action types. The aggregate `DiscoverShowsInteractor` combining six repositories became five single-repository interactors.
+One `DiscoverShowsPresenter` with 17 dependencies became a host with 5, plus four children with 5 to 7 dependencies each, scoped to their own concern. The 11 flow combine became four independent combines inside their respective children. The 19 action sealed interface was retired in favor of 3 host actions plus per child action types. The aggregate `DiscoverShowsInteractor`, which combined six repositories, became five single repository interactors.
 
 Unit tests for the featured section no longer require constructing interactors for trending, popular, or catalog behavior. Each child's test stands up only what that child needs.
 
-## When to reach for this pattern
+## When to Use Child Contexts
 
-**Reach for child contexts when** a screen has independent, simultaneously-alive blocks that each manage state on their own. If the blocks have separate data sources, separate loading states, or separate actions that have no cross-section meaning, they are candidates for their own child presenter.
+Use child contexts when a screen has independent blocks that are all on screen at the same time and each manage their own state. If the blocks pull from separate data sources, track separate loading states, or handle actions that only make sense for one section, each one is a candidate for its own child presenter.
 
-**Accept the trade-off.** More files, more generated graph interfaces, and a small amount of explicit forwarding in the host dispatch. For a screen like Discover, that trade-off is worth it. For a simple form screen with a single submit action, it is overkill.
+Splitting a complex screen into smaller units means more files, but each unit becomes simpler to test, debug, and update. The other costs are a few more generated graph interfaces and a handful of actions the host forwards to its children by hand. For a screen like Discover, I'll pay that price every time. For a simple form with a single submit button, I wouldn't bother.
 
-The test for whether to split: could you write a focused unit test for one block without knowing anything about the other blocks? If not, the coupling is already there, and it belongs somewhere explicit.
+The test I use now: could I write a focused unit test for one block without knowing anything about the others? If not, the coupling is already there, and it belongs somewhere explicit.
 
-## Pull requests
+## Final Thoughts
 
-[TODO: Add PR link]
+The big presenter wasn't a decision I ever made. It just grew. Each feature I added to Discover was one more dependency and one more branch in dispatch, and no single one felt like a big deal at the time. The cost only became clear once the file crossed 400 lines and setting up a test took longer than writing it.
 
-## Final thoughts
-
-The monolith was not a design choice so much as accumulated inertia. Each feature added to Discover was one more dependency and one more branch in dispatch, and no single addition felt dramatic. The structural cost only became visible when the file crossed 400 lines and a test setup took longer than the test itself.
-
-Decompose's `childContext` gave me the right primitive. The codegen made the per-child DI graph automatic. The result is a screen where each section can be reasoned about, tested, and extended without touching anything else. That is what good decomposition looks like.
+`childContext` was the right tool for this, and the codegen made the per child DI graph automatic. The result is a screen where I can read, test, and change one section without touching any of the others.
 
 ## Resources
 
-- [Component-based Approach: Implementing Screens with Decompose (Artur Artikov, ITNEXT)](https://itnext.io/component-based-approach-implementing-screens-with-the-decompose-library-2b47f3e40bf6)
+- [TvManiac Github Project](https://github.com/thomaskioko/tv-maniac)
 - [Decompose on GitHub](https://github.com/arkivanov/Decompose)
 - [Decompose documentation](https://arkivanov.github.io/Decompose/)
 
