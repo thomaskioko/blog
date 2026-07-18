@@ -338,6 +338,4 @@ The big presenter wasn't a decision I ever made. It just grew. Each feature I ad
 - [Decompose on GitHub](https://github.com/arkivanov/Decompose)
 - [Decompose documentation](https://arkivanov.github.io/Decompose/)
 
-This is a post in the **Tv Maniac Journey** series.
-
 Until we meet again, folks. Happy coding! ✌️
