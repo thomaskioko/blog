@@ -13,6 +13,8 @@ So, let's take a look at how I reworked a complex screen and made it easier to w
 
 The Discover screen is the most complex screen in the app. It is the first thing a user sees, and it holds featured shows, upcoming picks, a continue watching row, and the full show catalog. All this was being managed by a single presenter. It grew and became a pain to manage.
 
+![Discover screen components](https://github.com/user-attachments/assets/e04e89e9-8589-4252-b16f-ec8c6346a57b)
+
 ## The Overloaded Presenter
 
 The old `DiscoverShowsPresenter` accepted 17 injected dependencies. Here is a trimmed view of its constructor:
@@ -173,7 +175,7 @@ public class DiscoverFeaturedPresenter(
 ) : ComponentContext by componentContext { ... }
 ```
 
-That annotation is what triggers code generation to produce the `DiscoverFeaturedChildGraph.Factory` the host injects, and it contributes that graph into both the Android and iOS dependency graphs. This gets rid of boilerplate code I would have to write manually. How that code generation works, and how I use the same annotations to wire up navigation, is a bigger topic than this post and deserves its own. The part that matters here is just the annotation itself: it marks a class as a child component and lets the host create it through its own `childContext`.
+That annotation is what triggers code generation to produce the `DiscoverFeaturedChildGraph.Factory` the host injects, and it contributes that graph into both the Android and iOS dependency graphs. This gets rid of boilerplate code I would have to write manually. How that code generation works, and how I use the same annotations to wire up navigation, is a bigger topic that deserves its own post. The part that matters here is just the annotation itself: it marks a class as a child component and lets the host create it through its own `childContext`.
 
 ## What Each Child Owns
 
