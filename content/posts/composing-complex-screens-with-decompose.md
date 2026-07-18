@@ -21,7 +21,7 @@ The Discover screen is the most complex screen in the app. It is the first thing
 
 ## The Overloaded Presenter
 
-The old `DiscoverShowsPresenter` accepted 17 injected dependencies. Here is a trimmed view of its constructor:
+A presenter here plays the same role a ViewModel or state machine does: it holds the screen's state, handles UI actions, and survives configuration changes. With that in mind, the old `DiscoverShowsPresenter` accepted 17 injected dependencies. Here is a trimmed view of its constructor:
 
 ##### Before
 
