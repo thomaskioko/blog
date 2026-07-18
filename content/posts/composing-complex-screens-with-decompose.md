@@ -7,7 +7,7 @@ tags: ["KMP", "Decompose", "Architecture", "Jetpack Compose", "SwiftUI", "Androi
 series: "Tv Maniac Journey"
 ---
 
-This is the first post in a three part series on building Tv Maniac's screens and navigation with Decompose. The next two posts will cover navigation and codegen. I'll walk you through how I use Decompose to navigate between screens while keeping screens and features free of navigation logic. Code generation writes all the DI bindings, so adding a new feature and wiring up its navigation stays simple.
+This is the first post in a multiple part series on building Tv Maniac's screens and navigation with Decompose. The next two posts will cover navigation and codegen. I'll walk you through how I use Decompose to navigate between screens while keeping screens and features free of navigation logic. Code generation writes all the DI bindings, so adding a new feature and wiring up its navigation stays simple.
 
 [Tv Maniac](https://github.com/thomaskioko/tv-maniac) is a Kotlin Multiplatform app that runs on Android and iOS. [Decompose](https://arkivanov.github.io/Decompose/) is the library I use to handle navigation and state on the shared side. Each screen is a component that owns its state and survives configuration changes, much like an Android ViewModel, except the same component drives both the Android and iOS UI.
 
