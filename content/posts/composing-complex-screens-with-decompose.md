@@ -7,15 +7,15 @@ tags: ["KMP", "Decompose", "Architecture", "Jetpack Compose", "SwiftUI", "Androi
 series: "Tv Maniac Journey"
 ---
 
-This is the first post in a multiple part series on building Tv Maniac's screens and navigation with Decompose. The next two posts will cover navigation and codegen. I'll walk you through how I use Decompose to navigate between screens while keeping screens and features free of navigation logic. Code generation writes all the DI bindings, so adding a new feature and wiring up its navigation stays simple.
+This is the first post in a multiple part series on building Tv Maniac's screens and navigation with Decompose. The next two posts will cover navigation and codegen. I'll walk you through how I use Decompose to navigate between screens while keeping screens and features free of navigation logic. I'll also walk you through how I use code generation to write all the DI bindings. This reduces the boilerplate code one needs to write when adding a new feature.
 
-[Tv Maniac](https://github.com/thomaskioko/tv-maniac) is a Kotlin Multiplatform app that runs on Android and iOS. [Decompose](https://arkivanov.github.io/Decompose/) is the library I use to handle navigation and state on the shared side. Each screen is a component that owns its state and survives configuration changes, much like an Android ViewModel, except the same component drives both the Android and iOS UI.
+For some context, [Tv Maniac](https://github.com/thomaskioko/tv-maniac) is a Kotlin Multiplatform app that runs on Android and iOS. [Decompose](https://arkivanov.github.io/Decompose/) is the library I use to handle navigation and state on the shared side. Each screen is a component that owns its state and survives configuration changes, much like an Android ViewModel, except the same component drives both the Android and iOS UI.
 
 So, let's take a look at how I reworked a complex screen and made it easier to work with, thanks to [Decompose child components](https://arkivanov.github.io/Decompose/component/child-components/).
 
 ## The Discover Screen
 
-The Discover screen is the most complex screen in the app. It is the first thing a user sees, and it holds featured shows, upcoming picks, a continue watching row, and the full show catalog. All this was being managed by a single presenter. It grew and became a pain to manage.
+The Discover screen is the most complex screen in the app. It is the first screen that is rendered when the user opens the app. It fetches a lot of information: featured shows, upcoming shows, continue watching episodes, and the full show catalog. All this was being managed by a single presenter. It grew and became a pain to manage.
 
 ![Discover screen components](https://github.com/user-attachments/assets/e04e89e9-8589-4252-b16f-ec8c6346a57b)
 
